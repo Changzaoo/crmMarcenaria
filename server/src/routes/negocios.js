@@ -1,0 +1,120 @@
+import { Router } from "express";
+import { db } from "../db/index.js";
+import { criarProjetoComEtapas } from "../lib/projetoFactory.js";
+import { calcularOrcamento } from "../lib/calc.js";
+
+const r = Router();
+
+// Calcula o preço final de um orçamento (para usar como valor do projeto).
+function valorDoOrcamento(orc) {
+  const ambientes = db.prepare("SELECT * FROM orcamento_ambientes WHERE orcamento_id = ?").all(orc.id);
+  for (const amb of ambientes) {
+    amb.itens = db.prepare("SELECT * FROM orcamento_itens WHERE ambiente_id = ?").all(amb.id);
+    for (const item of amb.itens) {
+      item.materiais = db.prepare("SELECT * FROM orcamento_item_materiais WHERE item_id = ?").all(item.id);
+    }
+  }
+  return calcularOrcamento(orc, ambientes).resumo.preco_final;
+}
+
+const baseSelect = `
+  SELECT n.*, e.nome_fantasia AS empresa_nome, e.razao_social AS empresa_razao,
+         c.nome AS contato_nome, c.telefone AS contato_telefone,
+         (SELECT MIN(i.proximo_follow_up) FROM interacoes i
+            WHERE i.negocio_id = n.id AND i.follow_up_concluido = 0 AND i.proximo_follow_up IS NOT NULL) AS proximo_follow_up
+  FROM negocios n
+  LEFT JOIN empresas e ON e.id = n.empresa_id
+  LEFT JOIN contatos c ON c.id = n.contato_id
+`;
+
+r.get("/", (_req, res) => {
+  res.json(db.prepare(baseSelect + " ORDER BY n.ordem, n.criado_em DESC").all());
+});
+
+r.get("/:id", (req, res) => {
+  const n = db.prepare(baseSelect + " WHERE n.id = ?").get(req.params.id);
+  if (!n) return res.status(404).json({ erro: "Negócio não encontrado." });
+  n.interacoes = db.prepare("SELECT * FROM interacoes WHERE negocio_id = ? ORDER BY data DESC").all(req.params.id);
+  n.orcamentos = db.prepare("SELECT * FROM orcamentos WHERE negocio_id = ? ORDER BY versao DESC").all(req.params.id);
+  res.json(n);
+});
+
+r.post("/", (req, res) => {
+  const b = req.body;
+  if (!b.titulo) return res.status(400).json({ erro: "Informe um título para o negócio." });
+  const maxOrdem = db.prepare("SELECT COALESCE(MAX(ordem),0)+1 o FROM negocios WHERE etapa = ?").get(b.etapa || "Lead").o;
+  const info = db
+    .prepare(
+      `INSERT INTO negocios (titulo, empresa_id, contato_id, segmento, origem, etapa, valor_estimado, probabilidade, data_prevista, responsavel, ordem)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+    )
+    .run(b.titulo, b.empresa_id || null, b.contato_id || null, b.segmento, b.origem, b.etapa || "Lead",
+      b.valor_estimado || 0, b.probabilidade ?? 50, b.data_prevista, b.responsavel, maxOrdem);
+  res.json(db.prepare(baseSelect + " WHERE n.id = ?").get(info.lastInsertRowid));
+});
+
+r.put("/:id", (req, res) => {
+  const b = req.body;
+  db.prepare(
+    `UPDATE negocios SET titulo=?, empresa_id=?, contato_id=?, segmento=?, origem=?, valor_estimado=?, probabilidade=?, data_prevista=?, responsavel=? WHERE id=?`
+  ).run(b.titulo, b.empresa_id || null, b.contato_id || null, b.segmento, b.origem, b.valor_estimado || 0,
+    b.probabilidade ?? 50, b.data_prevista, b.responsavel, req.params.id);
+  res.json(db.prepare(baseSelect + " WHERE n.id = ?").get(req.params.id));
+});
+
+// Move no kanban (etapa + ordem). Trata regras de Perdido e Fechado (ganho).
+r.patch("/:id/mover", (req, res) => {
+  const { etapa, ordem, motivo_perda } = req.body;
+  const neg = db.prepare("SELECT * FROM negocios WHERE id = ?").get(req.params.id);
+  if (!neg) return res.status(404).json({ erro: "Negócio não encontrado." });
+
+  if (etapa === "Perdido" && !motivo_perda) {
+    return res.status(400).json({ erro: "Informe o motivo da perda.", precisaMotivo: true });
+  }
+
+  const fechadoEm = (etapa === "Fechado (ganho)" || etapa === "Perdido") ? new Date().toISOString().slice(0, 19).replace("T", " ") : null;
+  db.prepare("UPDATE negocios SET etapa=?, ordem=?, motivo_perda=?, fechado_em=COALESCE(?, fechado_em) WHERE id=?")
+    .run(etapa, ordem ?? 0, etapa === "Perdido" ? motivo_perda : null, fechadoEm, req.params.id);
+
+  let projetoCriado = null;
+  if (etapa === "Fechado (ganho)" && neg.etapa !== "Fechado (ganho)") {
+    const jaTem = db.prepare("SELECT id FROM projetos WHERE negocio_id = ?").get(req.params.id);
+    if (!jaTem) {
+      const orc = db.prepare("SELECT * FROM orcamentos WHERE negocio_id = ? AND status='aprovado' ORDER BY versao DESC").get(req.params.id);
+      const pid = criarProjetoComEtapas({
+        negocio_id: neg.id,
+        empresa_id: neg.empresa_id,
+        orcamento_id: orc ? orc.id : null,
+        nome: neg.titulo,
+        valor: orc ? valorDoOrcamento(orc) : neg.valor_estimado,
+        data_contrato: new Date().toISOString().slice(0, 10),
+      });
+      projetoCriado = pid;
+    }
+  }
+  res.json({ ok: true, projetoCriado });
+});
+
+r.delete("/:id", (req, res) => {
+  db.prepare("DELETE FROM negocios WHERE id = ?").run(req.params.id);
+  res.json({ ok: true });
+});
+
+// ----- Interações / follow-ups -----
+r.post("/:id/interacoes", (req, res) => {
+  const b = req.body;
+  const info = db
+    .prepare("INSERT INTO interacoes (negocio_id, tipo, descricao, proximo_follow_up) VALUES (?,?,?,?)")
+    .run(req.params.id, b.tipo || "nota", b.descricao, b.proximo_follow_up || null);
+  res.json(db.prepare("SELECT * FROM interacoes WHERE id = ?").get(info.lastInsertRowid));
+});
+r.patch("/interacoes/:iid", (req, res) => {
+  db.prepare("UPDATE interacoes SET follow_up_concluido=? WHERE id=?").run(req.body.follow_up_concluido ? 1 : 0, req.params.iid);
+  res.json({ ok: true });
+});
+r.delete("/interacoes/:iid", (req, res) => {
+  db.prepare("DELETE FROM interacoes WHERE id = ?").run(req.params.iid);
+  res.json({ ok: true });
+});
+
+export default r;
