@@ -40,10 +40,10 @@ export default function Catalogo() {
   return (
     <div>
       <PageHeader title="Catálogo de materiais" subtitle="Insumos usados pelo orçamentador"
-        actions={<button className="btn-primary" onClick={() => setModal({ ...vazio })}>+ Novo material</button>} />
+        actions={<button data-tour="page-action" className="btn-primary" onClick={() => setModal({ ...vazio })}>+ Novo material</button>} />
 
       <div className="flex gap-3 mb-5 flex-wrap">
-        <Input placeholder="Buscar por nome ou fornecedor…" value={busca} onChange={(e) => setBusca(e.target.value)} className="max-w-xs" />
+        <Input data-tour="page-search" placeholder="Buscar por nome ou fornecedor…" value={busca} onChange={(e) => setBusca(e.target.value)} className="max-w-xs" />
         <Select value={filtro} onChange={(e) => setFiltro(e.target.value)} className="max-w-[200px]">
           <option value="">Todas as categorias</option>
           {CATEGORIAS.map((c) => <option key={c} value={c}>{c}</option>)}

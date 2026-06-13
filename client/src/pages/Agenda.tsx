@@ -54,7 +54,7 @@ export default function Agenda() {
               <button className={`px-3 py-1 rounded text-sm ${vista === "mes" ? "bg-champagne text-background" : "text-muted"}`} onClick={() => setVista("mes")}>Mês</button>
               <button className={`px-3 py-1 rounded text-sm ${vista === "lista" ? "bg-champagne text-background" : "text-muted"}`} onClick={() => setVista("lista")}>Lista</button>
             </div>
-            <button className="btn-primary" onClick={() => setModal({ tipo: "reuniao", data: hoje() })}>+ Novo evento</button>
+            <button data-tour="page-action" className="btn-primary" onClick={() => setModal({ tipo: "reuniao", data: hoje() })}>+ Novo evento</button>
           </div>
         } />
 

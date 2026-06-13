@@ -109,10 +109,10 @@ export default function CRM() {
   return (
     <div>
       <PageHeader title="Funil comercial" subtitle="Arraste os cards entre as etapas"
-        actions={<button className="btn-primary" onClick={() => setNovo({ etapa: "Lead", probabilidade: 30, valor_estimado: 0, origem: "site", segmento: "loja" })}>+ Novo lead</button>} />
+        actions={<button data-tour="page-action" className="btn-primary" onClick={() => setNovo({ etapa: "Lead", probabilidade: 30, valor_estimado: 0, origem: "site", segmento: "loja" })}>+ Novo lead</button>} />
 
       <DragDropContext onDragEnd={onDragEnd}>
-        <div className="flex gap-3 overflow-x-auto pb-4">
+        <div data-tour="crm-board" className="flex gap-3 overflow-x-auto pb-4">
           {ABERTAS.map((etapa) => {
             const cards = porEtapa(etapa);
             const total = cards.reduce((s, n) => s + n.valor_estimado, 0);

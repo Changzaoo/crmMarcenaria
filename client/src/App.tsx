@@ -2,6 +2,7 @@ import { Routes, Route } from "react-router-dom";
 import AuthGate from "./auth/AuthGate";
 import Layout from "./components/Layout";
 import { UIProvider } from "./components/ui";
+import { TourProvider } from "./components/Tutorial";
 import Dashboard from "./pages/Dashboard";
 import CRM from "./pages/CRM";
 import Clientes from "./pages/Clientes";
@@ -20,6 +21,7 @@ export default function App() {
   return (
     <UIProvider>
       <AuthGate>
+        <TourProvider>
         <Layout>
           <Routes>
             <Route path="/" element={<Dashboard />} />
@@ -37,6 +39,7 @@ export default function App() {
             <Route path="/config" element={<Configuracoes />} />
           </Routes>
         </Layout>
+        </TourProvider>
       </AuthGate>
     </UIProvider>
   );

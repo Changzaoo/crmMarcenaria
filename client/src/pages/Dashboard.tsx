@@ -24,9 +24,9 @@ export default function Dashboard() {
   return (
     <div>
       <PageHeader title="Dashboard" subtitle="Visão geral da operação"
-        actions={<button className="btn-primary" onClick={() => nav("/crm")}>+ Novo lead</button>} />
+        actions={<button data-tour="page-action" className="btn-primary" onClick={() => nav("/crm")}>+ Novo lead</button>} />
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+      <div data-tour="dash-cards" className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
         {cards.map((c, i) => (
           <motion.div key={c.label} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}>
             <Link to={c.to}>
@@ -60,6 +60,7 @@ export default function Dashboard() {
         </Card>
 
         <Card>
+          <div data-tour="dash-followups">
           <h3 className="font-semibold mb-4">Próximos follow-ups</h3>
           {d.followups.length === 0 ? <p className="text-muted text-sm">Nada pendente. 🎉</p> : (
             <div className="space-y-3">
@@ -77,6 +78,7 @@ export default function Dashboard() {
               ))}
             </div>
           )}
+          </div>
         </Card>
       </div>
     </div>

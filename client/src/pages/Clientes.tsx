@@ -34,10 +34,10 @@ export default function Clientes() {
   return (
     <div>
       <PageHeader title="Clientes e contatos" subtitle="Empresas B2B, arquitetos e especificadores"
-        actions={<button className="btn-primary" onClick={() => setModal({ ...vazio })}>+ Novo cliente</button>} />
+        actions={<button data-tour="page-action" className="btn-primary" onClick={() => setModal({ ...vazio })}>+ Novo cliente</button>} />
 
       <div className="flex gap-3 mb-5 flex-wrap">
-        <Input placeholder="Buscar empresa…" value={busca} onChange={(e) => setBusca(e.target.value)} className="max-w-xs" />
+        <Input data-tour="page-search" placeholder="Buscar empresa…" value={busca} onChange={(e) => setBusca(e.target.value)} className="max-w-xs" />
         <Select value={tipo} onChange={(e) => setTipo(e.target.value)} className="max-w-[200px]">
           <option value="">Todos</option><option value="cli">Clientes</option><option value="arq">Arquitetos parceiros</option>
         </Select>

@@ -32,7 +32,7 @@ export default function Orcamentos() {
   return (
     <div>
       <PageHeader title="Orçamentos" subtitle="Propostas por ambiente e peças"
-        actions={<button className="btn-primary" onClick={() => setNovo({ titulo: "", status: "rascunho" })}>+ Novo orçamento</button>} />
+        actions={<button data-tour="page-action" className="btn-primary" onClick={() => setNovo({ titulo: "", status: "rascunho" })}>+ Novo orçamento</button>} />
 
       {lista.length === 0 ? (
         <EmptyState icon="₪" title="Nenhum orçamento" hint="Crie orçamentos compostos por ambientes e itens que consomem o catálogo de materiais."

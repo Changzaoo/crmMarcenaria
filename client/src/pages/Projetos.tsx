@@ -25,7 +25,7 @@ export default function Projetos() {
   return (
     <div>
       <PageHeader title="Projetos e produção" subtitle="Pipeline com as 10 etapas oficiais LINEAR"
-        actions={<button className="btn-primary" onClick={() => setNovo({ nome: "", status: "Em andamento" })}>+ Novo projeto</button>} />
+        actions={<button data-tour="page-action" className="btn-primary" onClick={() => setNovo({ nome: "", status: "Em andamento" })}>+ Novo projeto</button>} />
 
       {lista.length === 0 ? (
         <EmptyState icon="⚒" title="Nenhum projeto" hint="Projetos nascem de negócios ganhos no funil, ou crie um manualmente."

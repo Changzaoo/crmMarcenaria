@@ -31,7 +31,7 @@ export default function Financeiro() {
   return (
     <div>
       <PageHeader title="Financeiro" subtitle="Parcelas por projeto"
-        actions={<button className="btn-primary" onClick={() => setModal({ status: "a_receber", vencimento: hoje() })}>+ Nova parcela</button>} />
+        actions={<button data-tour="page-action" className="btn-primary" onClick={() => setModal({ status: "a_receber", vencimento: hoje() })}>+ Nova parcela</button>} />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
         <Card><div className="text-xs text-muted">A receber (em aberto)</div><div className="font-display text-2xl text-champagne mt-1">{moeda(aReceber)}</div></Card>

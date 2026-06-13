@@ -43,7 +43,7 @@ export default function Configuracoes() {
   return (
     <div>
       <PageHeader title="Configurações" subtitle="Padrões, dados da empresa, templates e backup"
-        actions={<button className="btn-primary" onClick={salvar}>Salvar alterações</button>} />
+        actions={<button data-tour="page-action" className="btn-primary" onClick={salvar}>Salvar alterações</button>} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <Card>
