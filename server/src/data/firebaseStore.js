@@ -7,10 +7,13 @@ const DATABASE_PATH = (process.env.FIREBASE_DATABASE_PATH || "linear-crm/databas
 const DATA_ENABLED =
   process.env.FIREBASE_DATA_ENABLED !== "0" &&
   (process.env.FIREBASE_DATA_ENABLED === "1" || !!process.env.FIREBASE_DATABASE_URL);
+const DATA_STRICT = process.env.FIREBASE_DATA_STRICT === "1";
 
 let hydrated = false;
 let hydrating = null;
 let saving = null;
+let disabledByError = false;
+let lastError = null;
 
 function firebaseUrl(path, token) {
   const cleanPath = path.replace(/^\/+|\/+$/g, "");
@@ -20,7 +23,21 @@ function firebaseUrl(path, token) {
 }
 
 function shouldSync() {
-  return DATA_ENABLED && !!DATABASE_URL;
+  return DATA_ENABLED && !!DATABASE_URL && !disabledByError;
+}
+
+function recordSyncError(error, action) {
+  const message = error?.message || String(error);
+  lastError = {
+    action,
+    message,
+    at: new Date().toISOString(),
+  };
+  console.error(`[firebase-data] ${action}: ${message}`);
+
+  if (!DATA_STRICT) {
+    disabledByError = true;
+  }
 }
 
 async function firebaseFetch(path, token, options = {}) {
@@ -33,10 +50,18 @@ async function firebaseFetch(path, token, options = {}) {
   });
 
   const text = await response.text();
-  const data = text ? JSON.parse(text) : null;
+  let data = null;
+  try {
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = text;
+  }
 
   if (!response.ok) {
-    const erro = data?.error || `Firebase Realtime Database retornou ${response.status}`;
+    const erro =
+      (data && typeof data === "object" && data.error) ||
+      (typeof data === "string" && data) ||
+      `Firebase Realtime Database retornou ${response.status}`;
     throw new Error(erro);
   }
 
@@ -77,7 +102,9 @@ export async function hydrateFirebaseData(req, _res, next) {
 
     return next();
   } catch (error) {
-    return next(error);
+    recordSyncError(error, "Falha ao sincronizar snapshot; usando SQLite local");
+    if (DATA_STRICT) return next(error);
+    return next();
   }
 }
 
@@ -90,7 +117,7 @@ export function persistFirebaseData(req, res, next) {
       saving = (saving || Promise.resolve())
         .then(() => saveSnapshot(req.firebaseToken))
         .catch((error) => {
-          console.error("[firebase-data] Falha ao salvar snapshot:", error.message);
+          recordSyncError(error, "Falha ao salvar snapshot");
         })
         .finally(() => {
           saving = null;
@@ -105,9 +132,13 @@ export function persistFirebaseData(req, res, next) {
 
 export function firebaseDataStatus() {
   return {
-    enabled: shouldSync(),
+    enabled: DATA_ENABLED && !!DATABASE_URL,
+    active: shouldSync(),
+    strict: DATA_STRICT,
+    disabledByError,
     databaseUrl: DATABASE_URL.replace(/^https?:\/\//, ""),
     path: DATABASE_PATH,
     hydrated,
+    lastError,
   };
 }

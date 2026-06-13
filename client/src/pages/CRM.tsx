@@ -4,21 +4,56 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { moeda, moedaCurta, data, vencido, whatsappLink, aplicarTemplate } from "../lib/format";
 import { Negocio, NegocioDetalhe, Empresa, EmpresaDetalhe, TemplateWhatsapp, ETAPAS_CRM, SEGMENTOS, ORIGENS, MOTIVOS_PERDA } from "../types";
-import { PageHeader, Modal, Field, Input, Select, Textarea, Badge, useUI, Spinner } from "../components/ui";
+import { PageHeader, Card, Modal, Field, Input, Select, Textarea, Badge, useUI, Spinner } from "../components/ui";
 
 const ABERTAS = ETAPAS_CRM.filter((e) => e !== "Perdido");
+
+function apiErrorMessage(error: unknown) {
+  return error instanceof Error && error.message ? error.message : "Falha ao carregar dados.";
+}
 
 export default function CRM() {
   const { toast } = useUI();
   const nav = useNavigate();
   const [negocios, setNegocios] = useState<Negocio[] | null>(null);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [erroCarga, setErroCarga] = useState<string | null>(null);
   const [novo, setNovo] = useState<Partial<Negocio> | null>(null);
   const [detalheId, setDetalheId] = useState<number | null>(null);
   const [perda, setPerda] = useState<{ id: number; ordem: number; motivo: string } | null>(null);
 
-  const carregar = () => api.get<Negocio[]>("/negocios").then(setNegocios);
-  useEffect(() => { carregar(); api.get<Empresa[]>("/empresas").then(setEmpresas); }, []);
+  const carregar = async () => {
+    try {
+      const dados = await api.get<Negocio[]>("/negocios");
+      setNegocios(dados);
+      setErroCarga(null);
+      return dados;
+    } catch (error) {
+      const msg = apiErrorMessage(error);
+      setErroCarga(msg);
+      toast(msg, "err");
+      return negocios || [];
+    }
+  };
+
+  const carregarTudo = async () => {
+    try {
+      const [dadosNegocios, dadosEmpresas] = await Promise.all([
+        api.get<Negocio[]>("/negocios"),
+        api.get<Empresa[]>("/empresas"),
+      ]);
+      setNegocios(dadosNegocios);
+      setEmpresas(dadosEmpresas);
+      setErroCarga(null);
+    } catch (error) {
+      const msg = apiErrorMessage(error);
+      setNegocios(null);
+      setErroCarga(msg);
+      toast(msg, "err");
+    }
+  };
+
+  useEffect(() => { carregarTudo(); }, []);
 
   const onDragEnd = async (r: DropResult) => {
     if (!r.destination || !negocios) return;
@@ -54,6 +89,20 @@ export default function CRM() {
     catch (e: any) { toast(e.message, "err"); }
   };
 
+  if (!negocios && erroCarga) {
+    return (
+      <div>
+        <PageHeader title="Funil comercial" subtitle="Arraste os cards entre as etapas" />
+        <Card className="border-red-500/30 bg-red-500/5">
+          <div className="font-semibold text-red-200">Nao foi possivel carregar o funil.</div>
+          <p className="text-sm text-muted mt-1">{erroCarga}</p>
+          <button className="btn-ghost mt-4" onClick={() => { setErroCarga(null); carregarTudo(); }}>
+            Tentar novamente
+          </button>
+        </Card>
+      </div>
+    );
+  }
   if (!negocios) return <Spinner />;
   const porEtapa = (et: string) => negocios.filter((n) => n.etapa === et).sort((a, b) => a.ordem - b.ordem);
 
