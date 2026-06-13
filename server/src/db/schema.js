@@ -193,6 +193,38 @@ CREATE TABLE IF NOT EXISTS configuracoes (
   empresa_endereco TEXT,
   empresa_slogan TEXT
 );
+
+-- ===== Orçamento 3D (leads + projetos do estúdio 3D) =====
+-- Mantidos FORA da lista TABELAS de propósito: o snapshot do Firebase NÃO deve
+-- sobrescrever leads criados por visitantes públicos. Persistem no SQLite local.
+CREATE TABLE IF NOT EXISTS leads_3d (
+  id TEXT PRIMARY KEY,
+  nome TEXT NOT NULL,
+  email TEXT,
+  whatsapp TEXT,
+  cidade_estado TEXT,
+  tipo_projeto TEXT,
+  prazo TEXT,
+  faixa_orcamento TEXT,
+  descricao TEXT,
+  aceite INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'Novo Lead 3D',
+  origem TEXT NOT NULL DEFAULT 'Orçamento 3D',
+  anotacoes TEXT,
+  projeto_id TEXT,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS projetos_3d (
+  id TEXT PRIMARY KEY,
+  lead_id TEXT REFERENCES leads_3d(id) ON DELETE SET NULL,
+  nome TEXT,
+  doc TEXT NOT NULL DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'rascunho',
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
 `;
 
 // Etapas oficiais da LINEAR

@@ -8,6 +8,7 @@ import financeiro from "./financeiro.js";
 import config from "./config.js";
 import dashboard from "./dashboard.js";
 import uploads from "./uploads.js";
+import leads3d from "./leads3d.js";
 import { requireFirebaseAuth } from "../auth/firebaseAuth.js";
 import { hydrateFirebaseData, persistFirebaseData } from "../data/firebaseStore.js";
 
@@ -25,4 +26,5 @@ export function mountRoutes(api) {
   api.use("/config", config);
   api.use("/dashboard", dashboard);
   api.use("/uploads", uploads);
+  api.use("/leads-3d", leads3d);
 }

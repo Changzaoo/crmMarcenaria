@@ -2,6 +2,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { ReactNode } from "react";
 import { motion } from "framer-motion";
 import {
+  Box,
   CalendarDays,
   FileText,
   Hammer,
@@ -25,6 +26,7 @@ const NAV = [
   { to: "/clientes", label: "Clientes", icon: UsersRound },
   { to: "/orcamentos", label: "Orçamentos", icon: FileText },
   { to: "/projetos", label: "Projetos", icon: Hammer },
+  { to: "/suporte-3d", label: "Suporte 3D", icon: Box },
   { to: "/catalogo", label: "Catálogo", icon: Library },
   { to: "/agenda", label: "Agenda", icon: CalendarDays },
   { to: "/financeiro", label: "Financeiro", icon: WalletCards },
