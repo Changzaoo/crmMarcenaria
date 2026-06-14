@@ -6,7 +6,11 @@ const r = Router();
 
 const STATUS = ["Novo", "Em atendimento", "Projeto analisado", "Proposta enviada", "Fechado", "Perdido"];
 
-const asyncRoute = (fn) => (req, res) => fn(req, res).catch((e) => res.status(500).json({ erro: e.message }));
+const asyncRoute = (fn) => (req, res) =>
+  fn(req, res).catch((e) => {
+    console.error("[leads-3d]", req.method, req.originalUrl, "->", e?.stack || e);
+    res.status(500).json({ erro: e?.message || "Falha ao processar leads 3D." });
+  });
 
 r.get(
   "/",

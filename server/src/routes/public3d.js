@@ -12,7 +12,11 @@ import {
 // que monta o ambiente. Montadas em /api/public ANTES do middleware de auth.
 const r = Router();
 
-const asyncRoute = (fn) => (req, res) => fn(req, res).catch((e) => res.status(500).json({ erro: e.message }));
+const asyncRoute = (fn) => (req, res) =>
+  fn(req, res).catch((e) => {
+    console.error("[public-3d]", req.method, req.originalUrl, "->", e?.stack || e);
+    res.status(500).json({ erro: e?.message || "Falha ao processar o Estúdio 3D." });
+  });
 
 // ---------- Lead obrigatório antes do 3D ----------
 r.post(

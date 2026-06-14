@@ -10,13 +10,23 @@ import { db } from "../db/index.js";
 // instâncias). Em dev local, sem SUPABASE_SERVICE_KEY, cai no SQLite de sempre.
 
 const SUPABASE_URL = (process.env.SUPABASE_URL || "https://fepyzmawcsetlyinztjc.supabase.co").replace(/\/+$/, "");
-const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SECRET_KEY || "";
+// .trim() remove espaços/quebras de linha coladas por engano. A chave do Supabase
+// é sempre ASCII; um valor com caractere fora de 0x20–0x7E indica que foi colado o
+// valor MASCARADO (•••) da UI da Vercel — o fetch quebra ao montar o header.
+const SUPABASE_SERVICE_KEY = (process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_SECRET_KEY || "").trim();
+const KEY_ASCII = /^[\x21-\x7e]+$/.test(SUPABASE_SERVICE_KEY);
 
 const usarSupabase = () => !!SUPABASE_SERVICE_KEY;
 const agora = () => new Date().toISOString();
 
 // ---------------- PostgREST (Supabase) ----------------
 async function rest(path, options = {}) {
+  if (!KEY_ASCII) {
+    throw new Error(
+      "SUPABASE_SERVICE_KEY inválida: contém caracteres não-ASCII (você colou o valor mascarado '•••' da Vercel?). " +
+        "Defina a service_role / secret key real (ex.: sb_secret_...) nas variáveis de ambiente."
+    );
+  }
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     ...options,
     headers: {
