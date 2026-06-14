@@ -212,6 +212,8 @@ CREATE TABLE IF NOT EXISTS leads_3d (
   origem TEXT NOT NULL DEFAULT 'Orçamento 3D',
   anotacoes TEXT,
   projeto_id TEXT,
+  arquiteto_solicitado INTEGER NOT NULL DEFAULT 0,
+  arquiteto_solicitado_em TEXT,
   criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   atualizado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );

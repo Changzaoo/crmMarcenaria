@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Box, Eye, LogIn, MessageCircle, Search } from "lucide-react";
+import { Box, Eye, LogIn, MessageCircle, Search, BellRing } from "lucide-react";
 import { PageHeader, Card, Badge, EmptyState, Spinner, useUI } from "../../components/ui";
 import { dataHora, whatsappLink } from "../../lib/format";
 import { listarLeads, atualizarLead, STATUS_LEAD } from "./services/leadService";
@@ -23,23 +23,45 @@ export default function ArchitectSupportPage() {
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState("Todos");
 
-  const carregar = () => {
-    setLoading(true);
+  // silencioso = atualização em segundo plano (polling) sem piscar o spinner.
+  const carregar = (silencioso = false) => {
+    if (!silencioso) setLoading(true);
     listarLeads()
       .then(setLeads)
-      .catch(() => toast("Falha ao carregar leads 3D", "err"))
-      .finally(() => setLoading(false));
+      .catch(() => { if (!silencioso) toast("Falha ao carregar leads 3D", "err"); })
+      .finally(() => { if (!silencioso) setLoading(false); });
   };
-  useEffect(carregar, []);
+  // Recarrega ao montar e a cada 4s, para que um "Chamar arquiteto" do cliente
+  // apareça aqui ao vivo, sem precisar atualizar a página manualmente.
+  useEffect(() => {
+    carregar();
+    const t = setInterval(() => carregar(true), 4000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    return leads.filter((l) => {
-      const statusOk = filtro === "Todos" || statusBase(l.status) === filtro;
-      const buscaOk = !q || [l.nome, l.email, l.whatsapp, l.tipo_projeto, l.cidade_estado].some((v) => v?.toLowerCase().includes(q));
-      return statusOk && buscaOk;
-    });
+    return leads
+      .filter((l) => {
+        const statusOk = filtro === "Todos" || statusBase(l.status) === filtro;
+        const buscaOk = !q || [l.nome, l.email, l.whatsapp, l.tipo_projeto, l.cidade_estado].some((v) => v?.toLowerCase().includes(q));
+        return statusOk && buscaOk;
+      })
+      // Quem está chamando o arquiteto vai para o topo.
+      .sort((a, b) => (b.arquiteto_solicitado ? 1 : 0) - (a.arquiteto_solicitado ? 1 : 0));
   }, [leads, busca, filtro]);
+
+  const chamando = useMemo(() => leads.filter((l) => l.arquiteto_solicitado).length, [leads]);
+
+  function entrar(l: Lead3D) {
+    // Ao entrar na sessão, limpa o sinal de "chamando arquiteto".
+    if (l.arquiteto_solicitado) {
+      setLeads((ls) => ls.map((x) => (x.id === l.id ? { ...x, arquiteto_solicitado: 0 } : x)));
+      atualizarLead(l.id, { arquiteto_solicitado: 0 }).catch(() => {});
+    }
+    navigate(`/suporte-3d/sessao/${l.projeto_id}`);
+  }
 
   async function mudarStatus(id: string, status: string) {
     setLeads((ls) => ls.map((l) => (l.id === id ? { ...l, status } : l)));
@@ -64,8 +86,17 @@ export default function ArchitectSupportPage() {
       <PageHeader
         title="Suporte 3D / Arquiteto"
         subtitle="Leads que iniciaram um Orçamento 3D — visualize o ambiente, entre na sessão e atenda em tempo real."
-        actions={<button onClick={carregar} className="btn-ghost text-sm">Atualizar</button>}
+        actions={<button onClick={() => carregar()} className="btn-ghost text-sm">Atualizar</button>}
       />
+
+      {chamando > 0 && (
+        <div className="mb-4 flex items-center gap-2 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          <BellRing size={16} className="animate-pulse" />
+          {chamando === 1
+            ? "1 cliente está chamando um arquiteto agora."
+            : `${chamando} clientes estão chamando um arquiteto agora.`}
+        </div>
+      )}
 
       <div className="flex flex-wrap gap-2 mb-5">
         <div className="relative flex-1 min-w-[200px]">
@@ -85,7 +116,15 @@ export default function ArchitectSupportPage() {
       ) : (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {filtrados.map((l) => (
-            <Card key={l.id} className="flex flex-col gap-3">
+            <Card
+              key={l.id}
+              className={`flex flex-col gap-3 ${l.arquiteto_solicitado ? "ring-2 ring-amber-400/60 shadow-[0_0_0_4px_rgba(251,191,36,0.08)]" : ""}`}
+            >
+              {l.arquiteto_solicitado ? (
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-amber-300">
+                  <BellRing size={13} className="animate-pulse" /> Chamando arquiteto
+                </div>
+              ) : null}
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="font-medium text-text truncate">{l.nome}</div>
@@ -127,7 +166,7 @@ export default function ArchitectSupportPage() {
                 </button>
                 <button
                   disabled={!l.projeto_id}
-                  onClick={() => navigate(`/suporte-3d/sessao/${l.projeto_id}`)}
+                  onClick={() => entrar(l)}
                   className="btn-primary text-xs py-2 disabled:opacity-40"
                 >
                   <LogIn size={14} /> Entrar

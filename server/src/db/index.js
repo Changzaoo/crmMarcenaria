@@ -18,6 +18,15 @@ db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
 db.exec(SCHEMA);
 
+// Migrações idempotentes para colunas adicionadas após a 1ª versão do schema.
+const leadCols = db.prepare("PRAGMA table_info(leads_3d)").all().map((c) => c.name);
+if (!leadCols.includes("arquiteto_solicitado")) {
+  db.exec("ALTER TABLE leads_3d ADD COLUMN arquiteto_solicitado INTEGER NOT NULL DEFAULT 0");
+}
+if (!leadCols.includes("arquiteto_solicitado_em")) {
+  db.exec("ALTER TABLE leads_3d ADD COLUMN arquiteto_solicitado_em TEXT");
+}
+
 // Garante linha única de configurações
 const cfg = db.prepare("SELECT id FROM configuracoes WHERE id = 1").get();
 if (!cfg) {

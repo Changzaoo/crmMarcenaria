@@ -26,6 +26,8 @@ export interface Lead3D {
   origem: string;
   anotacoes?: string;
   projeto_id?: string;
+  arquiteto_solicitado?: number;
+  arquiteto_solicitado_em?: string;
   projeto_status?: string;
   projeto_atualizado_em?: string;
   criado_em?: string;
@@ -47,5 +49,7 @@ export const STATUS_LEAD = [
 
 export const listarLeads = () => api.get<Lead3D[]>("/leads-3d");
 export const obterLead = (id: string) => api.get<Lead3DDetalhe>(`/leads-3d/${id}`);
-export const atualizarLead = (id: string, dados: { status?: string; anotacoes?: string }) =>
-  api.patch<Lead3D>(`/leads-3d/${id}`, dados);
+export const atualizarLead = (
+  id: string,
+  dados: { status?: string; anotacoes?: string; arquiteto_solicitado?: number }
+) => api.patch<Lead3D>(`/leads-3d/${id}`, dados);

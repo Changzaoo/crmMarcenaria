@@ -17,3 +17,7 @@ export const salvarProjeto = (id: string, doc: Project3DDoc, status?: string) =>
 
 export const enviarParaAnalise = (id: string, doc: Project3DDoc) =>
   api.post<{ ok: boolean }>(`/public/projetos-3d/${id}/enviar`, { doc });
+
+// Cliente sinaliza que precisa de um especialista — destaca o lead no Suporte 3D.
+export const chamarArquiteto = (id: string) =>
+  api.post<{ ok: boolean }>(`/public/projetos-3d/${id}/chamar-arquiteto`, {});

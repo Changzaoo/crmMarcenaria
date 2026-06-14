@@ -4,7 +4,7 @@ import { useUI } from "../../components/ui";
 import { StudioProvider, useStudio } from "./store";
 import type { Project3DDoc, Role, SessionState } from "./types";
 import { CollaborationSession } from "./services/collaborationService";
-import { salvarProjeto, enviarParaAnalise } from "./services/project3DService";
+import { salvarProjeto, enviarParaAnalise, chamarArquiteto } from "./services/project3DService";
 import ThreeDScene from "./scene/ThreeDScene";
 import CameraModeSelector from "./ui/CameraModeSelector";
 import FurnitureLibrary from "./ui/FurnitureLibrary";
@@ -122,9 +122,14 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
     }
   }
 
-  function chamarArquiteto() {
+  async function solicitarArquiteto() {
     void persistir(localDocRef.current, true);
-    toast("Especialista avisado! Em instantes alguém pode entrar na sua sessão.");
+    try {
+      await chamarArquiteto(projetoId);
+      toast("Especialista avisado! Em instantes alguém pode entrar na sua sessão.");
+    } catch {
+      toast("Não foi possível chamar o especialista agora. Tente novamente.", "err");
+    }
   }
 
   return (
@@ -151,7 +156,7 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
           <FileText size={15} /> <span className="hidden lg:inline">Pré-orçamento</span>
         </button>
         {role === "cliente" && (
-          <button onClick={chamarArquiteto} className="btn-primary px-3 py-2 text-sm">
+          <button onClick={solicitarArquiteto} className="btn-primary px-3 py-2 text-sm">
             <PhoneCall size={15} /> <span className="hidden lg:inline">Chamar arquiteto</span>
           </button>
         )}
