@@ -49,11 +49,17 @@ export default function PlayerAndCamera({
   const wasMoving = useRef(false);
   const { camera } = useThree();
   const set = useThree((s) => s.set);
+  const size = useThree((s) => s.size);
   // ref compartilhado entre as câmeras (só uma monta por vez); `any` evita o
   // conflito de tipos entre PerspectiveCamera e OrthographicCamera.
   const camRef = useRef<any>(null);
 
   const walk = mode === "primeira" || mode === "terceira";
+  const maxDim = Math.max(bounds.L, bounds.C);
+  const orthoZoom = Math.max(
+    24,
+    Math.min(80, Math.min(size.width / (maxDim * 1.6), size.height / (maxDim * 1.6)))
+  );
 
   // Força a câmera do modo atual a ser a câmera ativa do R3F. Sem isto, o
   // `makeDefault` do drei às vezes não assume (StrictMode/timing) e a cena fica
@@ -62,8 +68,10 @@ export default function PlayerAndCamera({
     const cam = camRef.current;
     if (!cam) return;
     set({ camera: cam });
+    if (mode === "isometrica") cam.lookAt(0, floorY + 0.5, 0);
+    if (mode === "topo") cam.lookAt(0, floorY, 0);
     cam.updateProjectionMatrix?.();
-  }, [mode, set]);
+  }, [floorY, mode, orthoZoom, set]);
 
   useFrame((state, delta) => {
     const k = keys.current;
@@ -135,8 +143,6 @@ export default function PlayerAndCamera({
     }
   });
 
-  const maxDim = Math.max(bounds.L, bounds.C);
-
   return (
     <>
       {/* Câmeras */}
@@ -145,10 +151,10 @@ export default function PlayerAndCamera({
       )}
       {mode === "terceira" && <PerspectiveCamera ref={camRef} makeDefault fov={55} position={[0, floorY + 2.4, 4]} />}
       {mode === "isometrica" && (
-        <OrthographicCamera ref={camRef} makeDefault zoom={70} position={[maxDim, maxDim + floorY, maxDim]} near={-100} far={1000} />
+        <OrthographicCamera ref={camRef} makeDefault zoom={orthoZoom} position={[maxDim, maxDim + floorY, maxDim]} near={-100} far={1000} />
       )}
       {mode === "topo" && (
-        <OrthographicCamera ref={camRef} makeDefault zoom={70} position={[0, maxDim * 1.6 + floorY, 0.001]} near={-100} far={1000} />
+        <OrthographicCamera ref={camRef} makeDefault zoom={orthoZoom} position={[0, maxDim * 1.6 + floorY, 0.001]} near={-100} far={1000} />
       )}
 
       {/* Controles */}

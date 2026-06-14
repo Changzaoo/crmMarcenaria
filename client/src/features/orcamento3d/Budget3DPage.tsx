@@ -35,6 +35,7 @@ export default function Budget3DPage({ role = "cliente", readOnly = false }: { r
         const carregado = p.doc && p.doc.environment ? p.doc : emptyDoc();
         setDoc(carregado);
         setProjetoId(p.id);
+        setClienteNome(p.lead?.nome || "Cliente");
         setPhase("studio");
       })
       .catch(() => vivo && setErro("Projeto não encontrado."));

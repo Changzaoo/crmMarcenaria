@@ -130,10 +130,21 @@ export async function criarLeadEProjeto(b) {
 export async function lerProjeto(id) {
   if (usarSupabase()) {
     const rows = await lista(`projetos_3d?id=eq.${id}&select=*&limit=1`);
-    return rows?.[0] ? normalizarDoc(rows[0]) : null;
+    const projeto = rows?.[0] ? normalizarDoc(rows[0]) : null;
+    if (!projeto) return null;
+    if (projeto.lead_id) {
+      const leads = await lista(`leads_3d?id=eq.${projeto.lead_id}&select=id,nome&limit=1`);
+      return { ...projeto, lead: leads?.[0] || null };
+    }
+    return { ...projeto, lead: null };
   }
   const p = db.prepare("SELECT * FROM projetos_3d WHERE id = ?").get(id);
-  return p ? normalizarDoc(p) : null;
+  if (!p) return null;
+  const projeto = normalizarDoc(p);
+  const lead = projeto.lead_id
+    ? db.prepare("SELECT id, nome FROM leads_3d WHERE id = ?").get(projeto.lead_id) || null
+    : null;
+  return { ...projeto, lead };
 }
 
 export async function salvarProjeto(id, b) {

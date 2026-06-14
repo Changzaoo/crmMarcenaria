@@ -37,6 +37,7 @@ interface Presence {
 type OutMsg =
   | { type: "presence"; presence: Presence }
   | { type: "syncdoc"; doc: Project3DDoc; from: string; ts: number }
+  | { type: "syncdoc-request"; from: string; ts: number }
   | { type: "leave"; id: string };
 
 export interface WsCollabOptions {
@@ -70,11 +71,14 @@ export class WsCollaborationSession {
     this.topic = `collab:${opts.projetoId}`;
   }
 
-  start() {
+  start(initialDoc?: Project3DDoc) {
+    if (initialDoc) this.doc = initialDoc;
     connectNet();
     this.off = subscribe(this.topic, (d) => this.receive(d));
     // anuncia presença já e mantém heartbeat
     this.publishPresence();
+    this.requestDoc();
+    this.emit();
     this.beat = setInterval(() => {
       this.publishPresence();
       this.prune();
@@ -91,6 +95,10 @@ export class WsCollaborationSession {
     const _mid = mid();
     this.markSeen(_mid);
     publish(this.topic, { ...m, _mid });
+  }
+
+  private requestDoc() {
+    this.send({ type: "syncdoc-request", from: myPeerId, ts: Date.now() });
   }
 
   private receive(w: any) {
@@ -113,6 +121,12 @@ export class WsCollaborationSession {
         this.docRev++;
         this.opts.onRemoteDoc?.(this.doc);
         this.emit();
+        break;
+      }
+      case "syncdoc-request": {
+        if (w.from !== myPeerId && this.doc) {
+          this.send({ type: "syncdoc", doc: this.doc, from: myPeerId, ts: Date.now() });
+        }
         break;
       }
       case "leave": {

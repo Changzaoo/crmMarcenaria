@@ -87,7 +87,7 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
         }
       },
     });
-    collab.start();
+    collab.start(localDocRef.current);
     collabRef.current = collab;
     dlog("3D_SESSION", "Arquiteto/CRM entrou na sessão:", { projetoId, peerId, role });
     return () => {
@@ -249,7 +249,7 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
       {/* Câmera no mobile */}
       <div className="md:hidden px-3 py-2 border-b border-white/5 overflow-x-auto"><CameraModeSelector /></div>
 
-      <div className="flex-1 relative min-h-0">
+      <div className="flex-1 relative min-h-0 lg:flex">
         {/* Painel esquerdo — biblioteca */}
         <aside className={`absolute lg:static z-10 top-0 left-0 h-full w-72 bg-surface/95 lg:bg-surface border-r border-white/5 p-4 transition-transform ${libOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
           {!readOnly ? <FurnitureLibrary onClose={() => setLibOpen(false)} /> : <div className="text-sm text-muted">Visualização do ambiente do cliente.</div>}

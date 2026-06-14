@@ -4,6 +4,7 @@ import type { Project3DDoc } from "../types";
 export interface Projeto3D {
   id: string;
   lead_id?: string;
+  lead?: { id: string; nome?: string } | null;
   nome?: string;
   doc: Project3DDoc;
   status: string;
