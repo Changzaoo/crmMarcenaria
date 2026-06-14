@@ -68,12 +68,19 @@ export function leave(projetoId, peerId) {
 }
 
 // Publica o documento (ambiente + móveis). docRev cresce a cada alteração.
-export function pushDoc(projetoId, doc) {
+//
+// seed=true: usado por quem ENTRA na sessão para semear o relay com o ambiente
+// que já tem em mãos (carregado do banco). Só grava se a sessão ainda não tem
+// documento — assim quem chega primeiro garante que o próximo a entrar veja o
+// ambiente de imediato, sem clobberar edições ao vivo já presentes no relay.
+export function pushDoc(projetoId, doc, { seed = false } = {}) {
   const session = getSession(projetoId);
+  if (doc == null) return { docRev: session.docRev, seeded: false };
+  if (seed && session.doc) return { docRev: session.docRev, seeded: false };
   session.doc = doc;
   session.docRev++;
   session.rev++;
-  return { docRev: session.docRev };
+  return { docRev: session.docRev, seeded: true };
 }
 
 export function getState(projetoId) {

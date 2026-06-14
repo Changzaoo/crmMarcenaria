@@ -56,12 +56,20 @@ export class CollaborationSession {
     this.self = { x, z, ry };
   }
 
-  // Publica o documento para os outros participantes.
-  async pushDoc(doc: Project3DDoc) {
+  // Publica o documento para os outros participantes. Retorna o docRev para o
+  // chamador conseguir ignorar o próprio eco. seed=true semeia a sessão (só grava
+  // se ainda não houver documento no relay) — usado por quem entra na sessão.
+  async pushDoc(
+    doc: Project3DDoc,
+    opts?: { seed?: boolean }
+  ): Promise<{ docRev: number; seeded: boolean } | null> {
     try {
-      await api.post(`/public/sessao/${this.opts.projetoId}/doc`, { doc });
+      return await api.post(`/public/sessao/${this.opts.projetoId}/doc`, {
+        doc,
+        seed: opts?.seed ?? false,
+      });
     } catch {
-      /* ignore */
+      return null;
     }
   }
 

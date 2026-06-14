@@ -83,7 +83,8 @@ r.get("/sessao/:id/state", (req, res) => {
 });
 
 r.post("/sessao/:id/doc", (req, res) => {
-  res.json(pushDoc(req.params.id, (req.body || {}).doc));
+  const body = req.body || {};
+  res.json(pushDoc(req.params.id, body.doc, { seed: !!body.seed }));
 });
 
 r.post("/sessao/:id/leave", (req, res) => {

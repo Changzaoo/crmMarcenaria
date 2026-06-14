@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, FileText, Layers, PhoneCall, Save, Sofa, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, FileText, Keyboard, Layers, PhoneCall, Save, Sofa, SlidersHorizontal } from "lucide-react";
 import { useUI } from "../../components/ui";
 import { StudioProvider, useStudio } from "./store";
 import type { Project3DDoc, Role, SessionState } from "./types";
@@ -37,7 +37,22 @@ export default function StudioShell(props: ShellProps) {
 function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellProps) {
   const { toast } = useUI();
   const store = useStudio();
-  const { doc, replaceDoc, onDocChange, setProjectName } = store;
+  const {
+    doc,
+    replaceDoc,
+    onDocChange,
+    setProjectName,
+    setCameraMode,
+    select,
+    selectedUid,
+    selected,
+    removeFurniture,
+    duplicateFurniture,
+    updateFurniture,
+    cycleWallMode,
+    setActiveFloor,
+    activeFloor,
+  } = store;
 
   const [session, setSession] = useState<SessionState | null>(null);
   const [mostrarResumo, setMostrarResumo] = useState(false);
@@ -46,6 +61,7 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
   const [enviando, setEnviando] = useState(false);
   const [libOpen, setLibOpen] = useState(false);
   const [propsOpen, setPropsOpen] = useState(false);
+  const [mostrarAtalhos, setMostrarAtalhos] = useState(false);
 
   const peerId = useMemo(() => `${role}_${Math.random().toString(36).slice(2, 9)}`, [role]);
   const collabRef = useRef<CollaborationSession | null>(null);
@@ -76,6 +92,13 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
     });
     collab.start();
     collabRef.current = collab;
+    // Semeia a sessão com o ambiente atual (carregado do banco) para que quem
+    // entrar veja o ambiente do lead imediatamente — o relay não fica mais
+    // esperando a primeira edição. O servidor ignora o seed se a sessão já tiver
+    // um documento ao vivo, então não há risco de sobrescrever edições em curso.
+    collab.pushDoc(localDocRef.current, { seed: true }).then((r) => {
+      if (r?.docRev != null) lastSelfPushRev.current = r.docRev;
+    });
     return () => {
       void collab.stop();
       collabRef.current = null;
@@ -89,7 +112,7 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
       localDocRef.current = next;
       setSalvo(false);
       // publica para a sessão colaborativa
-      collabRef.current?.pushDoc(next).then((r: any) => {
+      collabRef.current?.pushDoc(next).then((r) => {
         if (r?.docRev != null) lastSelfPushRev.current = r.docRev;
       });
       // autosave debounce
@@ -98,6 +121,70 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onDocChange]);
+
+  // ---- Atalhos de teclado do estúdio ----
+  // Movimentação (WASD/setas) é tratada na cena; aqui ficam os atalhos de edição,
+  // câmera e navegação. Ignorados quando há um campo de texto em foco.
+  useEffect(() => {
+    const editavelEmFoco = () => {
+      const el = document.activeElement as HTMLElement | null;
+      if (!el) return false;
+      const tag = el.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
+    };
+
+    const onKey = (e: KeyboardEvent) => {
+      if (editavelEmFoco()) return;
+      const ctrl = e.ctrlKey || e.metaKey;
+
+      // Ctrl/Cmd+S — salvar
+      if (ctrl && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        void persistir(localDocRef.current);
+        return;
+      }
+      // Ctrl/Cmd+D — duplicar móvel selecionado
+      if (ctrl && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        if (!readOnly && selectedUid) duplicateFurniture(selectedUid);
+        return;
+      }
+      if (ctrl) return; // demais combinações com Ctrl/Cmd ficam para o navegador
+
+      switch (e.key) {
+        case "1": setCameraMode("primeira"); break;
+        case "2": setCameraMode("terceira"); break;
+        case "3": setCameraMode("isometrica"); break;
+        case "4": setCameraMode("topo"); break;
+        case "c": case "C": cycleWallMode(); break;
+        case "[": setActiveFloor(activeFloor - 1); break;
+        case "]": setActiveFloor(activeFloor + 1); break;
+        case "?": setMostrarAtalhos((v) => !v); break;
+        case "Escape":
+          if (mostrarAtalhos) setMostrarAtalhos(false);
+          else if (mostrarResumo) setMostrarResumo(false);
+          else select(null);
+          break;
+        case "Delete":
+        case "Backspace":
+          if (!readOnly && selectedUid) { e.preventDefault(); removeFurniture(selectedUid); }
+          break;
+        case "r":
+        case "R":
+          if (!readOnly && selected) {
+            const passo = e.shiftKey ? -Math.PI / 4 : Math.PI / 4;
+            updateFurniture(selected.uid, { rotation: selected.rotation + passo });
+          }
+          break;
+        default:
+          break;
+      }
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readOnly, selectedUid, selected, activeFloor, mostrarAtalhos, mostrarResumo]);
 
   async function persistir(d: Project3DDoc, silencioso = false) {
     try {
@@ -154,6 +241,9 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
         </button>
         <button onClick={() => setMostrarResumo(true)} className="btn-ghost px-3 py-2 text-sm">
           <FileText size={15} /> <span className="hidden lg:inline">Pré-orçamento</span>
+        </button>
+        <button onClick={() => setMostrarAtalhos(true)} className="btn-ghost px-2.5 py-2 text-sm" title="Atalhos de teclado (?)">
+          <Keyboard size={15} />
         </button>
         {role === "cliente" && (
           <button onClick={solicitarArquiteto} className="btn-primary px-3 py-2 text-sm">
@@ -228,6 +318,57 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
           enviando={enviando}
         />
       )}
+
+      {mostrarAtalhos && (
+        <ShortcutsOverlay readOnly={readOnly} onClose={() => setMostrarAtalhos(false)} />
+      )}
+    </div>
+  );
+}
+
+function ShortcutsOverlay({ readOnly, onClose }: { readOnly?: boolean; onClose: () => void }) {
+  const movimento: [string, string][] = [
+    ["W A S D / setas", "Mover pelo ambiente (1ª e 3ª pessoa)"],
+    ["1 / 2 / 3 / 4", "Câmera: 1ª pessoa · 3ª pessoa · isométrica · topo"],
+    ["[ / ]", "Andar abaixo / acima"],
+    ["C", "Alternar paredes (altas / rebaixadas / ocultas)"],
+  ];
+  const edicao: [string, string][] = [
+    ["R / Shift+R", "Girar móvel selecionado ±45°"],
+    ["Ctrl/Cmd + D", "Duplicar móvel selecionado"],
+    ["Delete / Backspace", "Remover móvel selecionado"],
+    ["Ctrl/Cmd + S", "Salvar projeto"],
+    ["Esc", "Desmarcar / fechar painel"],
+  ];
+  const geral: [string, string][] = [["?", "Mostrar / ocultar estes atalhos"]];
+
+  const Grupo = ({ titulo, itens }: { titulo: string; itens: [string, string][] }) => (
+    <div>
+      <div className="text-champagne/80 text-[11px] uppercase tracking-wider mb-2">{titulo}</div>
+      <div className="space-y-1.5">
+        {itens.map(([k, d]) => (
+          <div key={k} className="flex items-center justify-between gap-4 text-sm">
+            <span className="text-muted">{d}</span>
+            <kbd className="shrink-0 rounded-md bg-black/40 border border-white/10 px-2 py-0.5 text-xs text-text font-mono">{k}</kbd>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl bg-surface border border-white/10 p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-display text-xl flex items-center gap-2"><Keyboard size={18} /> Atalhos de teclado</h2>
+          <button onClick={onClose} className="text-muted hover:text-text">✕</button>
+        </div>
+        <div className="space-y-5">
+          <Grupo titulo="Navegação e câmera" itens={movimento} />
+          {!readOnly && <Grupo titulo="Edição" itens={edicao} />}
+          <Grupo titulo="Geral" itens={geral} />
+        </div>
+      </div>
     </div>
   );
 }
