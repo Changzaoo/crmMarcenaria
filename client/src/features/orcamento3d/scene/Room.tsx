@@ -59,12 +59,12 @@ export default function Room({ env, wallMode, activeFloor, isFloorVisible }: Pro
         })}
 
       {/* Medidas do ambiente (no andar ativo) */}
-      <Html position={[0, activeFloor * H + 0.02, C / 2 + 0.25]} center distanceFactor={12} occlude={false} zIndexRange={[22, 10]}>
+      <Html position={[0, activeFloor * H + 0.02, C / 2 + 0.25]} center occlude={false} zIndexRange={[22, 10]}>
         <div className="px-2 py-0.5 rounded bg-black/60 text-[10px] text-champagne whitespace-nowrap select-none">
           {L.toFixed(2)} m
         </div>
       </Html>
-      <Html position={[L / 2 + 0.25, activeFloor * H + 0.02, 0]} center distanceFactor={12} occlude={false} zIndexRange={[22, 10]}>
+      <Html position={[L / 2 + 0.25, activeFloor * H + 0.02, 0]} center occlude={false} zIndexRange={[22, 10]}>
         <div className="px-2 py-0.5 rounded bg-black/60 text-[10px] text-champagne whitespace-nowrap select-none">
           {C.toFixed(2)} m
         </div>

@@ -87,7 +87,7 @@ export default function FurnitureMesh({ item, selected, draggable, floorY, ghost
             <ringGeometry args={[Math.max(w, d) * 0.62, Math.max(w, d) * 0.62 + 0.06, 40]} />
             <meshBasicMaterial color={item.locked ? "#f87171" : "#D8B978"} transparent opacity={0.7} />
           </mesh>
-          <Html position={[0, h + 0.18, 0]} center distanceFactor={11} occlude={false} zIndexRange={[22, 10]}>
+          <Html position={[0, h + 0.18, 0]} center occlude={false} zIndexRange={[22, 10]}>
             <div className="px-2 py-0.5 rounded bg-black/70 text-[10px] text-champagne whitespace-nowrap select-none">
               {(w * 100).toFixed(0)}×{(d * 100).toFixed(0)}×{(h * 100).toFixed(0)} cm{item.locked ? " 🔒" : ""}
             </div>
