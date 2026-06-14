@@ -25,9 +25,20 @@ export interface TourStep {
 interface TourContextType {
   /** Inicia o tutorial da página atual (ou de uma rota específica). */
   startTour: (path?: string) => void;
+  /** Existe tutorial para a rota atual? */
+  hasTour: boolean;
+  /** Tutoriais automáticos estão ativos? */
+  autoTutorials: boolean;
+  /** Liga/desliga o início automático dos tutoriais. */
+  setAutoTutorials: (enabled: boolean) => void;
 }
 
-const TourContext = createContext<TourContextType>({ startTour: () => {} });
+const TourContext = createContext<TourContextType>({
+  startTour: () => {},
+  hasTour: false,
+  autoTutorials: true,
+  setAutoTutorials: () => {},
+});
 export const useTour = () => useContext(TourContext);
 
 /* ------------------------------------------------------------------ */
@@ -47,6 +58,13 @@ const HELP_STEP: TourStep = {
   placement: "right",
 };
 
+const NOTIF_STEP: TourStep = {
+  target: '[data-tour="notifications"]',
+  title: "Central de notificações",
+  body: "O sino mostra avisos importantes — por exemplo, quando um cliente chama um arquiteto no Estúdio 3D. O número indica quantos avisos ainda não foram lidos; clique para abri-los e ir direto ao atendimento.",
+  placement: "right",
+};
+
 export const TOURS: Record<string, TourStep[]> = {
   "/": [
     {
@@ -54,6 +72,7 @@ export const TOURS: Record<string, TourStep[]> = {
       body: "Este é um tour rápido e interativo. Vou destacar os elementos que você usa no dia a dia. Use Próximo para avançar ou Pular para sair.",
     },
     SIDEBAR_STEP,
+    NOTIF_STEP,
     {
       target: '[data-tour="dash-cards"]',
       title: "Indicadores da operação",
@@ -141,6 +160,26 @@ export const TOURS: Record<string, TourStep[]> = {
     },
     HELP_STEP,
   ],
+  "/suporte-3d": [
+    {
+      title: "Suporte 3D / Arquiteto",
+      body: "Aqui chegam os clientes que iniciaram um Orçamento 3D. Quando alguém pede um arquiteto, o card sobe para o topo e fica destacado em âmbar — é o seu painel de atendimento ao vivo.",
+    },
+    NOTIF_STEP,
+    {
+      target: '[data-tour="page-search"]',
+      title: "Buscar e filtrar leads",
+      body: "Filtre por status (Novo, Em atendimento, Fechado…) ou busque por nome, e-mail ou cidade do cliente.",
+      placement: "bottom",
+    },
+    {
+      target: '[data-tour="suporte-card"]',
+      title: "Ver ambiente ou Entrar",
+      body: "“Ver ambiente” abre o projeto em modo leitura. “Entrar” abre a mesma cena do cliente em sessão colaborativa em tempo real — é onde você atende. Há também o atalho para o WhatsApp.",
+      placement: "left",
+    },
+    HELP_STEP,
+  ],
   "/agenda": [
     {
       target: '[data-tour="page-action"]',
@@ -178,6 +217,7 @@ export const TOURS: Record<string, TourStep[]> = {
 };
 
 const SEEN_KEY = "linear:tour:seen";
+export const TOUR_DISABLED_KEY = "linear:tour:disabled";
 
 function loadSeen(): Record<string, boolean> {
   try {
@@ -187,32 +227,55 @@ function loadSeen(): Record<string, boolean> {
   }
 }
 
+/** Tutoriais automáticos desativados? (flag global, compartilhada com o Estúdio 3D) */
+export function toursDisabled(): boolean {
+  try {
+    return localStorage.getItem(TOUR_DISABLED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function setToursDisabled(v: boolean) {
+  try {
+    localStorage.setItem(TOUR_DISABLED_KEY, v ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /*  Provider                                                           */
 /* ------------------------------------------------------------------ */
 export function TourProvider({ children }: { children: ReactNode }) {
   const location = useLocation();
   const [steps, setSteps] = useState<TourStep[] | null>(null);
-  const [index, setIndex] = useState(0);
+  const [disabled, setDisabled] = useState<boolean>(() => toursDisabled());
 
   const startTour = useCallback((path?: string) => {
     const key = path || location.pathname;
     const list = TOURS[key];
     if (!list || list.length === 0) return;
-    setIndex(0);
     setSteps(list);
   }, [location.pathname]);
 
   const close = useCallback(() => setSteps(null), []);
 
-  // Auto-início na primeira visita de cada página
+  const setAutoTutorials = useCallback((enabled: boolean) => {
+    setToursDisabled(!enabled);
+    setDisabled(!enabled);
+    if (!enabled) setSteps(null);
+  }, []);
+
+  // Auto-início na primeira visita de cada página (a menos que desativado).
   useEffect(() => {
+    if (disabled) return;
     const seen = loadSeen();
     if (seen[location.pathname]) return;
     if (!TOURS[location.pathname]) return;
     const t = setTimeout(() => startTour(location.pathname), 600);
     return () => clearTimeout(t);
-  }, [location.pathname, startTour]);
+  }, [location.pathname, startTour, disabled]);
 
   const finish = useCallback(() => {
     const seen = loadSeen();
@@ -225,36 +288,68 @@ export function TourProvider({ children }: { children: ReactNode }) {
     close();
   }, [location.pathname, close]);
 
-  const next = useCallback(() => {
-    setIndex((i) => {
-      if (!steps) return i;
-      if (i >= steps.length - 1) {
-        finish();
-        return i;
-      }
-      return i + 1;
-    });
-  }, [steps, finish]);
-
-  const prev = useCallback(() => setIndex((i) => Math.max(0, i - 1)), []);
-
   return (
-    <TourContext.Provider value={{ startTour }}>
+    <TourContext.Provider value={{ startTour, hasTour: !!TOURS[location.pathname], autoTutorials: !disabled, setAutoTutorials }}>
       {children}
       <AnimatePresence>
         {steps && (
-          <TourOverlay
-            key={location.pathname + index}
-            step={steps[index]}
-            index={index}
-            total={steps.length}
-            onNext={next}
-            onPrev={prev}
-            onSkip={finish}
+          <GuidedTour
+            key={location.pathname}
+            steps={steps}
+            onClose={finish}
+            autoTutorials={!disabled}
+            onToggleAutoTutorials={setAutoTutorials}
           />
         )}
       </AnimatePresence>
     </TourContext.Provider>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  GuidedTour — motor reutilizável (usado no app e no Estúdio 3D)     */
+/* ------------------------------------------------------------------ */
+export function GuidedTour({
+  steps,
+  onClose,
+  autoTutorials,
+  onToggleAutoTutorials,
+}: {
+  steps: TourStep[];
+  onClose: () => void;
+  autoTutorials?: boolean;
+  onToggleAutoTutorials?: (enabled: boolean) => void;
+}) {
+  const [index, setIndex] = useState(0);
+  const total = steps.length;
+  const safeIndex = Math.min(index, total - 1);
+
+  const next = useCallback(() => {
+    setIndex((i) => {
+      if (i >= total - 1) {
+        onClose();
+        return i;
+      }
+      return i + 1;
+    });
+  }, [total, onClose]);
+
+  const prev = useCallback(() => setIndex((i) => Math.max(0, i - 1)), []);
+
+  if (total === 0) return null;
+
+  return (
+    <TourOverlay
+      key={safeIndex}
+      step={steps[safeIndex]}
+      index={safeIndex}
+      total={total}
+      onNext={next}
+      onPrev={prev}
+      onSkip={onClose}
+      autoTutorials={autoTutorials}
+      onToggleAutoTutorials={onToggleAutoTutorials}
+    />
   );
 }
 
@@ -277,6 +372,8 @@ function TourOverlay({
   onNext,
   onPrev,
   onSkip,
+  autoTutorials,
+  onToggleAutoTutorials,
 }: {
   step: TourStep;
   index: number;
@@ -284,6 +381,8 @@ function TourOverlay({
   onNext: () => void;
   onPrev: () => void;
   onSkip: () => void;
+  autoTutorials?: boolean;
+  onToggleAutoTutorials?: (enabled: boolean) => void;
 }) {
   const [rect, setRect] = useState<Rect | null>(null);
 
@@ -358,6 +457,8 @@ function TourOverlay({
         onNext={onNext}
         onPrev={onPrev}
         onSkip={onSkip}
+        autoTutorials={autoTutorials}
+        onToggleAutoTutorials={onToggleAutoTutorials}
       />
     </div>
   );
@@ -378,6 +479,8 @@ function TourCard({
   onNext,
   onPrev,
   onSkip,
+  autoTutorials,
+  onToggleAutoTutorials,
 }: {
   step: TourStep;
   index: number;
@@ -387,6 +490,8 @@ function TourCard({
   onNext: () => void;
   onPrev: () => void;
   onSkip: () => void;
+  autoTutorials?: boolean;
+  onToggleAutoTutorials?: (enabled: boolean) => void;
 }) {
   const pos = computeCardPosition(rect, step.placement);
 
@@ -443,6 +548,18 @@ function TourCard({
           </button>
         </div>
       </div>
+
+      {onToggleAutoTutorials && (
+        <label className="mt-4 pt-3 border-t border-white/5 flex items-center gap-2 text-xs text-muted cursor-pointer select-none">
+          <input
+            type="checkbox"
+            checked={!!autoTutorials}
+            onChange={(e) => onToggleAutoTutorials(e.target.checked)}
+            className="accent-champagne w-3.5 h-3.5"
+          />
+          Mostrar tutoriais automaticamente nas próximas vezes
+        </label>
+      )}
     </motion.div>
   );
 }

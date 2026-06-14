@@ -103,7 +103,7 @@ export default function ArchitectSupportPage() {
       <div className="flex flex-wrap gap-2 mb-5">
         <div className="relative flex-1 min-w-[200px]">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-          <input className="input pl-9" placeholder="Buscar por nome, e-mail, cidade..." value={busca} onChange={(e) => setBusca(e.target.value)} />
+          <input data-tour="page-search" className="input pl-9" placeholder="Buscar por nome, e-mail, cidade..." value={busca} onChange={(e) => setBusca(e.target.value)} />
         </div>
         <select className="input w-auto" value={filtro} onChange={(e) => setFiltro(e.target.value)}>
           <option>Todos</option>
@@ -116,7 +116,7 @@ export default function ArchitectSupportPage() {
       ) : filtrados.length === 0 ? (
         <EmptyState icon="🧊" title="Nenhum lead 3D ainda" hint="Quando um cliente montar um ambiente no Estúdio 3D, ele aparece aqui automaticamente." />
       ) : (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div data-tour="suporte-card" className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {filtrados.map((l) => (
             <Card
               key={l.id}

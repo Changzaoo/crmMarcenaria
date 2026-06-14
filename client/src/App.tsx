@@ -4,6 +4,7 @@ import AuthGate from "./auth/AuthGate";
 import Layout from "./components/Layout";
 import { UIProvider, Spinner } from "./components/ui";
 import { TourProvider } from "./components/Tutorial";
+import { NotificationProvider } from "./components/Notifications";
 import Dashboard from "./pages/Dashboard";
 import CRM from "./pages/CRM";
 import Clientes from "./pages/Clientes";
@@ -49,31 +50,33 @@ export default function App() {
 function AuthedApp() {
   return (
     <AuthGate>
-      <TourProvider>
-        <Layout>
-          <Suspense fallback={<Loader />}>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/crm" element={<CRM />} />
-              <Route path="/clientes" element={<Clientes />} />
-              <Route path="/clientes/:id" element={<ClienteDetalhe />} />
-              <Route path="/orcamentos" element={<Orcamentos />} />
-              <Route path="/orcamentos/:id" element={<OrcamentoEditor />} />
-              <Route path="/projetos" element={<Projetos />} />
-              <Route path="/projetos/:id" element={<ProjetoDetalhe />} />
-              <Route path="/catalogo" element={<Catalogo />} />
-              <Route path="/agenda" element={<Agenda />} />
-              <Route path="/financeiro" element={<Financeiro />} />
-              <Route path="/pos-venda" element={<PosVenda />} />
-              <Route path="/config" element={<Configuracoes />} />
-              {/* Suporte 3D / Arquiteto */}
-              <Route path="/suporte-3d" element={<ArchitectSupportPage />} />
-              <Route path="/suporte-3d/ver/:projetoId" element={<Budget3DPage role="arquiteto" readOnly />} />
-              <Route path="/suporte-3d/sessao/:projetoId" element={<Budget3DPage role="arquiteto" />} />
-            </Routes>
-          </Suspense>
-        </Layout>
-      </TourProvider>
+      <NotificationProvider>
+        <TourProvider>
+          <Layout>
+            <Suspense fallback={<Loader />}>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/crm" element={<CRM />} />
+                <Route path="/clientes" element={<Clientes />} />
+                <Route path="/clientes/:id" element={<ClienteDetalhe />} />
+                <Route path="/orcamentos" element={<Orcamentos />} />
+                <Route path="/orcamentos/:id" element={<OrcamentoEditor />} />
+                <Route path="/projetos" element={<Projetos />} />
+                <Route path="/projetos/:id" element={<ProjetoDetalhe />} />
+                <Route path="/catalogo" element={<Catalogo />} />
+                <Route path="/agenda" element={<Agenda />} />
+                <Route path="/financeiro" element={<Financeiro />} />
+                <Route path="/pos-venda" element={<PosVenda />} />
+                <Route path="/config" element={<Configuracoes />} />
+                {/* Suporte 3D / Arquiteto */}
+                <Route path="/suporte-3d" element={<ArchitectSupportPage />} />
+                <Route path="/suporte-3d/ver/:projetoId" element={<Budget3DPage role="arquiteto" readOnly />} />
+                <Route path="/suporte-3d/sessao/:projetoId" element={<Budget3DPage role="arquiteto" />} />
+              </Routes>
+            </Suspense>
+          </Layout>
+        </TourProvider>
+      </NotificationProvider>
     </AuthGate>
   );
 }

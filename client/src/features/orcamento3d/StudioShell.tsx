@@ -1,8 +1,11 @@
-import { Suspense, useEffect, useRef, useState } from "react";
-import { ArrowLeft, FileText, Keyboard, Layers, PhoneCall, Save, Sofa, SlidersHorizontal } from "lucide-react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { ArrowLeft, FileText, HelpCircle, Keyboard, Layers, PhoneCall, Save, Sofa, SlidersHorizontal } from "lucide-react";
 import { useUI } from "../../components/ui";
 import { StudioProvider, useStudio } from "./store";
 import type { Project3DDoc, Role, SessionState } from "./types";
+import { GuidedTour, toursDisabled, setToursDisabled } from "../../components/Tutorial";
+import type { TourStep } from "../../components/Tutorial";
+import { buildStudioSteps } from "./studioTourSteps";
 import { WsCollaborationSession, myPeerId } from "./services/wsCollaboration";
 import { salvarProjeto, enviarParaAnalise, chamarArquiteto } from "./services/project3DService";
 import { dlog } from "./dlog";
@@ -64,6 +67,45 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
   const [libOpen, setLibOpen] = useState(false);
   const [propsOpen, setPropsOpen] = useState(false);
   const [mostrarAtalhos, setMostrarAtalhos] = useState(false);
+
+  // ---- Tutorial do Estúdio 3D ----
+  const [tourSteps, setTourSteps] = useState<TourStep[] | null>(null);
+  const [autoDisabled, setAutoDisabled] = useState<boolean>(() => toursDisabled());
+
+  const isFirstVisitKey = `linear:tour:studio:seen:${role}`;
+
+  const iniciarTour = useCallback(() => {
+    const steps = buildStudioSteps(role, readOnly);
+    setTourSteps(steps);
+  }, [role, readOnly]);
+
+  // Auto-start na primeira visita (a menos que os tutoriais estejam desativados globalmente).
+  useEffect(() => {
+    if (autoDisabled) return;
+    try {
+      if (localStorage.getItem(isFirstVisitKey)) return;
+    } catch {
+      /* ignore */
+    }
+    const t = setTimeout(iniciarTour, 800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const fecharTour = useCallback(() => {
+    setTourSteps(null);
+    try {
+      localStorage.setItem(isFirstVisitKey, "1");
+    } catch {
+      /* ignore */
+    }
+  }, [isFirstVisitKey]);
+
+  const toggleAutoTutorials = useCallback((enabled: boolean) => {
+    setToursDisabled(!enabled);
+    setAutoDisabled(!enabled);
+    if (!enabled) setTourSteps(null);
+  }, []);
 
   const peerId = myPeerId;
   const collabRef = useRef<WsCollaborationSession | null>(null);
@@ -221,6 +263,7 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
           <button onClick={onExit} className="btn-ghost px-2.5 py-2" title="Voltar"><ArrowLeft size={16} /></button>
         )}
         <input
+          data-tour="studio-nome"
           value={doc.projectName}
           onChange={(e) => setProjectName(e.target.value)}
           disabled={readOnly}
@@ -228,19 +271,22 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
         />
         {role === "arquiteto" && <span className="chip bg-sky-500/15 text-sky-300 border border-sky-500/30">Modo arquiteto</span>}
 
-        <div className="ml-auto hidden md:block"><CameraModeSelector /></div>
+        <div data-tour="studio-camera" className="ml-auto hidden md:block"><CameraModeSelector /></div>
 
-        <button onClick={() => void persistir(localDocRef.current)} className="btn-ghost px-3 py-2 text-sm" title="Salvar">
+        <button data-tour="studio-save" onClick={() => void persistir(localDocRef.current)} className="btn-ghost px-3 py-2 text-sm" title="Salvar">
           <Save size={15} /> <span className="hidden lg:inline">{salvo ? "Salvo" : "Salvar"}</span>
         </button>
-        <button onClick={() => setMostrarResumo(true)} className="btn-ghost px-3 py-2 text-sm">
+        <button data-tour="studio-resumo" onClick={() => setMostrarResumo(true)} className="btn-ghost px-3 py-2 text-sm">
           <FileText size={15} /> <span className="hidden lg:inline">Pré-orçamento</span>
         </button>
-        <button onClick={() => setMostrarAtalhos(true)} className="btn-ghost px-2.5 py-2 text-sm" title="Atalhos de teclado (?)">
+        <button data-tour="studio-atalhos" onClick={() => setMostrarAtalhos(true)} className="btn-ghost px-2.5 py-2 text-sm" title="Atalhos de teclado (?)">
           <Keyboard size={15} />
         </button>
+        <button onClick={iniciarTour} className="btn-ghost px-2.5 py-2 text-sm" title="Mostrar tutorial do estúdio">
+          <HelpCircle size={15} />
+        </button>
         {role === "cliente" && (
-          <button onClick={solicitarArquiteto} className="btn-primary px-3 py-2 text-sm">
+          <button data-tour="studio-chamar" onClick={solicitarArquiteto} className="btn-primary px-3 py-2 text-sm">
             <PhoneCall size={15} /> <span className="hidden lg:inline">Chamar arquiteto</span>
           </button>
         )}
@@ -251,7 +297,7 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
 
       <div className="flex-1 relative min-h-0 lg:flex">
         {/* Painel esquerdo — biblioteca */}
-        <aside className={`absolute lg:static z-10 top-0 left-0 h-full w-72 bg-surface/95 lg:bg-surface border-r border-white/5 p-4 transition-transform ${libOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
+        <aside data-tour="studio-lib" className={`absolute lg:static z-10 top-0 left-0 h-full w-72 bg-surface/95 lg:bg-surface border-r border-white/5 p-4 transition-transform ${libOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
           {!readOnly ? <FurnitureLibrary onClose={() => setLibOpen(false)} /> : <div className="text-sm text-muted">Visualização do ambiente do cliente.</div>}
         </aside>
 
@@ -273,7 +319,7 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
           </div>
 
           {/* Controles de andar / paredes (estilo The Sims) */}
-          <div className="absolute top-3 left-3 z-10">
+          <div data-tour="studio-floors" className="absolute top-3 left-3 z-10">
             <FloorControls readOnly={readOnly} />
           </div>
 
@@ -292,18 +338,20 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
             <span className="font-display text-lg">Propriedades</span>
             <button onClick={() => setPropsOpen(false)} className="text-muted">✕</button>
           </div>
-          <div className="flex items-center gap-2 mb-3 text-champagne/80 text-[11px] uppercase tracking-wider"><Layers size={13} /> Propriedades do móvel</div>
+          <div data-tour="studio-props" className="flex items-center gap-2 mb-3 text-champagne/80 text-[11px] uppercase tracking-wider"><Layers size={13} /> Propriedades do móvel</div>
           <FurniturePropertiesPanel />
           <div className="my-4 border-t border-white/5" />
-          <SessionPanel
-            state={session}
-            role={role}
-            clienteNome={clienteNome}
-            salvo={salvo}
-            onSalvar={() => void persistir(localDocRef.current)}
-            onResumo={() => setMostrarResumo(true)}
-            onFinalizar={role === "arquiteto" ? onExit : undefined}
-          />
+          <div data-tour="studio-session">
+            <SessionPanel
+              state={session}
+              role={role}
+              clienteNome={clienteNome}
+              salvo={salvo}
+              onSalvar={() => void persistir(localDocRef.current)}
+              onResumo={() => setMostrarResumo(true)}
+              onFinalizar={role === "arquiteto" ? onExit : undefined}
+            />
+          </div>
         </aside>
       </div>
 
@@ -318,6 +366,17 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
 
       {mostrarAtalhos && (
         <ShortcutsOverlay readOnly={readOnly} onClose={() => setMostrarAtalhos(false)} />
+      )}
+
+      {/* Tutorial do Estúdio 3D */}
+      {tourSteps && (
+        <GuidedTour
+          key={`studio-tour-${role}-${readOnly ? "ro" : "rw"}`}
+          steps={tourSteps}
+          onClose={fecharTour}
+          autoTutorials={!autoDisabled}
+          onToggleAutoTutorials={toggleAutoTutorials}
+        />
       )}
     </div>
   );

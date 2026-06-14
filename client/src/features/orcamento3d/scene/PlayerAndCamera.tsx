@@ -56,10 +56,18 @@ export default function PlayerAndCamera({
 
   const walk = mode === "primeira" || mode === "terceira";
   const maxDim = Math.max(bounds.L, bounds.C);
-  const orthoZoom = Math.max(
-    24,
-    Math.min(80, Math.min(size.width / (maxDim * 1.6), size.height / (maxDim * 1.6)))
-  );
+
+  // Enquadramento automático da câmera ortográfica: o ambiente sempre cabe no
+  // viewport, independentemente do tamanho. (Antes o zoom travava em 24, então
+  // plantas grandes ficavam "gigantes" e jogadas para longe do centro.)
+  const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+  const minVP = Math.min(size.width, size.height) || 600;
+  const isoZoom = clamp(minVP / (Math.hypot(bounds.L, bounds.C) * 1.25), 4, 160);
+  const topZoom = clamp(Math.min(size.width / bounds.L, size.height / bounds.C) * 0.82, 4, 220);
+  const orthoZoom = mode === "topo" ? topZoom : isoZoom;
+  // near/far acompanham o tamanho do ambiente para não recortar plantas grandes.
+  const orthoNear = -(maxDim * 4 + 100);
+  const orthoFar = maxDim * 8 + 1000;
 
   // Força a câmera do modo atual a ser a câmera ativa do R3F. Sem isto, o
   // `makeDefault` do drei às vezes não assume (StrictMode/timing) e a cena fica
@@ -151,10 +159,10 @@ export default function PlayerAndCamera({
       )}
       {mode === "terceira" && <PerspectiveCamera ref={camRef} makeDefault fov={55} position={[0, floorY + 2.4, 4]} />}
       {mode === "isometrica" && (
-        <OrthographicCamera ref={camRef} makeDefault zoom={orthoZoom} position={[maxDim, maxDim + floorY, maxDim]} near={-100} far={1000} />
+        <OrthographicCamera ref={camRef} makeDefault zoom={orthoZoom} position={[maxDim, maxDim + floorY, maxDim]} near={orthoNear} far={orthoFar} />
       )}
       {mode === "topo" && (
-        <OrthographicCamera ref={camRef} makeDefault zoom={orthoZoom} position={[0, maxDim * 1.6 + floorY, 0.001]} near={-100} far={1000} />
+        <OrthographicCamera ref={camRef} makeDefault zoom={orthoZoom} position={[0, maxDim * 1.6 + floorY, 0.001]} near={orthoNear} far={orthoFar} />
       )}
 
       {/* Controles */}

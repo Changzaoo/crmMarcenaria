@@ -19,6 +19,7 @@ import {
 import type { LucideIcon } from "lucide-react";
 import { useAuth } from "../auth/AuthContext";
 import { useTour } from "./Tutorial";
+import { NotificationBell } from "./Notifications";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, end: true },
@@ -87,6 +88,7 @@ export default function Layout({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="p-3 lg:p-4 border-t border-white/5 space-y-2">
+          <NotificationBell />
           <button
             type="button"
             data-tour="help"
