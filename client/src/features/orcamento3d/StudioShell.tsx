@@ -17,6 +17,9 @@ import FurniturePropertiesPanel from "./ui/FurniturePropertiesPanel";
 import FloorControls from "./ui/FloorControls";
 import SessionPanel from "./ui/SessionPanel";
 import ProjectSummaryPanel from "./ui/ProjectSummaryPanel";
+import ViewportHud from "./ui/ViewportHud";
+import MobileControls from "./ui/MobileControls";
+import { useDeviceInfo } from "../../lib/useDeviceInfo";
 
 function peerColor(role: Role) {
   return role === "arquiteto" ? "#9fb4cc" : "#D8B978";
@@ -67,6 +70,9 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
   const [libOpen, setLibOpen] = useState(false);
   const [propsOpen, setPropsOpen] = useState(false);
   const [mostrarAtalhos, setMostrarAtalhos] = useState(false);
+
+  // Detecção de dispositivo: no mobile usamos joysticks de toque e layout adaptado.
+  const { isMobile, orientation } = useDeviceInfo();
 
   // ---- Tutorial do Estúdio 3D ----
   const [tourSteps, setTourSteps] = useState<TourStep[] | null>(null);
@@ -311,6 +317,7 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
                   selfPeerId={peerId}
                   role={role}
                   name={role === "arquiteto" ? "Especialista" : clienteNome}
+                  touch={isMobile}
                   onSelfMove={(x, z, ry) => collabRef.current?.updateSelf(x, z, ry)}
                   onMoving={(m) => collabRef.current?.setMoving(m)}
                 />
@@ -318,18 +325,32 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
             </SceneErrorBoundary>
           </div>
 
+          {/* Mira (1ª/3ª pessoa) + aviso do cursor (pointer lock) */}
+          <ViewportHud touch={isMobile} />
+
           {/* Controles de andar / paredes (estilo The Sims) */}
           <div data-tour="studio-floors" className="absolute top-3 left-3 z-10">
             <FloorControls readOnly={readOnly} />
           </div>
 
-          {/* FABs mobile */}
-          <div className="lg:hidden absolute bottom-4 left-4 flex flex-col gap-2 z-10">
-            {!readOnly && (
-              <button onClick={() => setLibOpen((v) => !v)} className="btn-primary rounded-full w-12 h-12 p-0 shadow-glow"><Sofa size={18} /></button>
-            )}
-            <button onClick={() => setPropsOpen((v) => !v)} className="btn-ghost rounded-full w-12 h-12 p-0"><SlidersHorizontal size={18} /></button>
-          </div>
+          {/* Controles de toque (celular/tablet) — adaptados a retrato e paisagem */}
+          {isMobile ? (
+            <MobileControls
+              mode={store.cameraMode}
+              orientation={orientation}
+              readOnly={readOnly}
+              onToggleLib={() => setLibOpen((v) => !v)}
+              onToggleProps={() => setPropsOpen((v) => !v)}
+            />
+          ) : (
+            /* FABs para janelas estreitas em desktop (sem toque) */
+            <div className="lg:hidden absolute bottom-4 left-4 flex flex-col gap-2 z-10">
+              {!readOnly && (
+                <button onClick={() => setLibOpen((v) => !v)} className="btn-primary rounded-full w-12 h-12 p-0 shadow-glow"><Sofa size={18} /></button>
+              )}
+              <button onClick={() => setPropsOpen((v) => !v)} className="btn-ghost rounded-full w-12 h-12 p-0"><SlidersHorizontal size={18} /></button>
+            </div>
+          )}
         </main>
 
         {/* Painel direito — propriedades + sessão */}

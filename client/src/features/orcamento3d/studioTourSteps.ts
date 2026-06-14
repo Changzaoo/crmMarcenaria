@@ -35,6 +35,13 @@ export function buildStudioSteps(role: Role, readOnly?: boolean): TourStep[] {
       body: "Busque por nome ou categoria (cozinhas, armários, closets…) e clique em um item para inseri-lo no ambiente. Depois é só arrastá-lo até o lugar certo.",
       placement: "right",
     });
+
+    steps.push({
+      target: '[data-tour="studio-lib"]',
+      title: "Importar modelo 3D",
+      body: "Tem um modelo pronto? Use “Importar modelo 3D” no topo da biblioteca para trazer arquivos dos principais aplicativos: .glb, .gltf, .obj, .stl e .fbx (SketchUp, Blender, 3ds Max, Revit, Fusion, Rhino…). O modelo entra na cena e pode ser posicionado como qualquer móvel.",
+      placement: "right",
+    });
   }
 
   steps.push({
@@ -47,7 +54,7 @@ export function buildStudioSteps(role: Role, readOnly?: boolean): TourStep[] {
   steps.push({
     target: '[data-tour="studio-camera"]',
     title: "Como se movimentar e mexer nos móveis",
-    body: "Em 1ª/3ª pessoa, ande com W A S D ou as setas. Em Isométrica/Vista superior, arraste os móveis para posicioná-los, gire a cena com o botão direito do mouse e use a rolagem para aproximar ou afastar. Clique em um móvel para selecioná-lo.",
+    body: "Em 1ª/3ª pessoa, ande com W A S D ou as setas (Shift corre). Uma mira em pontinho aparece no centro da tela. Na 1ª pessoa o mouse controla o olhar e o cursor fica oculto — pressione ESC a qualquer momento para liberar o cursor. Em Isométrica/Vista superior, arraste os móveis para posicioná-los, gire a cena com o botão direito e use a rolagem para aproximar/afastar. Clique em um móvel para selecioná-lo.",
   });
 
   steps.push({

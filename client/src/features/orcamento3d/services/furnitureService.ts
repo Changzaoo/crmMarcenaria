@@ -22,6 +22,7 @@ export function instanciar(
   return {
     uid: novoUid(),
     catalogId: def.id,
+    kind: def.kind,
     category: def.category,
     name: def.name,
     floor,

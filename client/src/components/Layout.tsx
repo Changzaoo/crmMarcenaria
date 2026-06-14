@@ -43,9 +43,9 @@ export default function Layout({ children }: { children: ReactNode }) {
   const initial = email.slice(0, 1).toUpperCase();
 
   return (
-    <div className="flex min-h-full bg-background">
-      <aside className="w-20 lg:w-64 shrink-0 bg-surface border-r border-white/5 flex flex-col">
-        <div className="px-3 lg:px-6 py-5 lg:py-7 border-b border-white/5">
+    <div className="flex h-screen overflow-hidden bg-background">
+      <aside className="w-20 lg:w-64 shrink-0 bg-surface border-r border-white/5 flex flex-col h-screen">
+        <div className="shrink-0 px-3 lg:px-6 py-5 lg:py-7 border-b border-white/5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-lg bg-champagne text-background grid place-items-center font-display text-xl">L</div>
             <div className="hidden lg:block">
@@ -87,7 +87,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <div className="p-3 lg:p-4 border-t border-white/5 space-y-2">
+        <div className="shrink-0 p-3 lg:p-4 border-t border-white/5 space-y-2">
           <NotificationBell />
           <button
             type="button"

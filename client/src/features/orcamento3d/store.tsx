@@ -27,6 +27,7 @@ interface StudioContextValue {
   setProjectName: (nome: string) => void;
   setNotes: (notes: string) => void;
   addFurniture: (catalogId: string) => void;
+  addImportedModel: (model: { name: string; url: string; format: string; size: { x: number; y: number; z: number } }) => void;
   updateFurniture: (uid: string, patch: Partial<FurnitureInstance>) => void;
   removeFurniture: (uid: string) => void;
   duplicateFurniture: (uid: string) => void;
@@ -145,6 +146,36 @@ export function StudioProvider({
     [mutate, activeFloor]
   );
 
+  const addImportedModel = useCallback(
+    (model: { name: string; url: string; format: string; size: { x: number; y: number; z: number } }) =>
+      mutate((p) => {
+        const clamp = (m: number) => Math.max(0.05, Math.round(m * 1000) / 1000);
+        const uid = `m_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+        const name = model.name.replace(/\.[^.]+$/, "").slice(0, 40) || "Modelo importado";
+        const inst: FurnitureInstance = {
+          uid,
+          catalogId: "modelo-importado",
+          category: "Importado",
+          name,
+          floor: activeFloor,
+          x: 0,
+          z: 0,
+          rotation: 0,
+          width: clamp(model.size.x),
+          height: clamp(model.size.y),
+          depth: clamp(model.size.z),
+          material: "mdf_amadeirado",
+          color: "",
+          locked: false,
+          modelUrl: model.url,
+          modelFormat: model.format,
+        };
+        setSelectedUid(uid);
+        return { ...p, furniture: [...p.furniture, inst] };
+      }),
+    [mutate, activeFloor]
+  );
+
   const updateFurniture = useCallback(
     (uid: string, patch: Partial<FurnitureInstance>) =>
       mutate((p) => ({
@@ -200,6 +231,7 @@ export function StudioProvider({
     setProjectName,
     setNotes,
     addFurniture,
+    addImportedModel,
     updateFurniture,
     removeFurniture,
     duplicateFurniture,

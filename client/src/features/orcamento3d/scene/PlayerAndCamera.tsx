@@ -4,6 +4,7 @@ import { OrbitControls, PerspectiveCamera, OrthographicCamera, PointerLockContro
 import { Group, Vector3 } from "three";
 import type { CameraMode, Role } from "../types";
 import Avatar from "./Avatar";
+import { virtualInput } from "./virtualInput";
 
 // Teclado WASD / setas compartilhado.
 function useKeyboard() {
@@ -28,6 +29,7 @@ interface Props {
   bounds: { L: number; C: number };
   floorY: number; // altura da base do andar ativo
   orbitEnabled: boolean;
+  touch?: boolean; // dispositivo de toque: usa joysticks virtuais p/ andar/olhar
   onSelfMove: (x: number, z: number, ry: number) => void;
   onMovingChange: (moving: boolean) => void;
 }
@@ -39,12 +41,15 @@ export default function PlayerAndCamera({
   bounds,
   floorY,
   orbitEnabled,
+  touch = false,
   onSelfMove,
   onMovingChange,
 }: Props) {
   const keys = useKeyboard();
   const avatar = useRef<Group>(null);
   const pos = useRef({ x: 0, z: bounds.C / 2 - 1.2, ry: Math.PI });
+  // Olhar em 1ª pessoa no toque (sem PointerLock): yaw/pitch acumulados.
+  const look = useRef({ yaw: Math.PI, pitch: 0 });
   const lastSent = useRef(0);
   const wasMoving = useRef(false);
   const { camera } = useThree();
@@ -92,6 +97,14 @@ export default function PlayerAndCamera({
     fitFrames.current = 0;
   }, [mode, bounds.L, bounds.C, floorY, size.width, size.height]);
 
+  // Ao entrar em 1ª pessoa, alinha o "olhar" virtual com a direção atual.
+  useLayoutEffect(() => {
+    if (mode === "primeira") {
+      look.current.yaw = pos.current.ry;
+      look.current.pitch = 0;
+    }
+  }, [mode]);
+
   useFrame((state, delta) => {
     // ---- Garante que a câmera ortográfica (iso/topo) assuma e fique enquadrada ----
     // Reaplica nos primeiros frames após (re)montar/trocar de modo. Depois libera o
@@ -114,8 +127,9 @@ export default function PlayerAndCamera({
     }
 
     const k = keys.current;
-    const fwd = (k.KeyW || k.ArrowUp ? 1 : 0) - (k.KeyS || k.ArrowDown ? 1 : 0);
-    const side = (k.KeyD || k.ArrowRight ? 1 : 0) - (k.KeyA || k.ArrowLeft ? 1 : 0);
+    // Teclado + joystick virtual (toque) combinados e limitados a [-1, 1].
+    const fwd = clamp((k.KeyW || k.ArrowUp ? 1 : 0) - (k.KeyS || k.ArrowDown ? 1 : 0) + virtualInput.move.y, -1, 1);
+    const side = clamp((k.KeyD || k.ArrowRight ? 1 : 0) - (k.KeyA || k.ArrowLeft ? 1 : 0) + virtualInput.move.x, -1, 1);
     let moving = false;
 
     if (walk) {
@@ -124,15 +138,22 @@ export default function PlayerAndCamera({
       if (mode === "terceira") {
         // A/D giram, W/S andam na direção
         pos.current.ry -= side * turn;
-        if (fwd !== 0) {
+        if (Math.abs(fwd) > 0.02) {
           pos.current.x += Math.sin(pos.current.ry) * fwd * speed;
           pos.current.z += Math.cos(pos.current.ry) * fwd * speed;
           moving = true;
         }
       } else {
-        // primeira pessoa: move relativo ao yaw da câmera (mantido pelo PointerLock)
-        const yaw = camera.rotation.y;
-        if (fwd !== 0 || side !== 0) {
+        // Primeira pessoa: no toque o olhar vem do joystick (sem PointerLock);
+        // no desktop, o yaw é mantido pelo PointerLockControls (camera.rotation).
+        if (touch) {
+          look.current.yaw -= virtualInput.look.x * 1.8 * delta;
+          look.current.pitch = clamp(look.current.pitch - virtualInput.look.y * 1.4 * delta, -1.2, 1.2);
+          camera.rotation.order = "YXZ";
+          camera.rotation.set(look.current.pitch, look.current.yaw, 0);
+        }
+        const yaw = touch ? look.current.yaw : camera.rotation.y;
+        if (Math.abs(fwd) > 0.02 || Math.abs(side) > 0.02) {
           const fX = -Math.sin(yaw);
           const fZ = -Math.cos(yaw);
           const rX = Math.cos(yaw);
@@ -197,7 +218,7 @@ export default function PlayerAndCamera({
       )}
 
       {/* Controles */}
-      {mode === "primeira" && <PointerLockControls />}
+      {mode === "primeira" && !touch && <PointerLockControls />}
       {(mode === "isometrica" || mode === "topo") && (
         <OrbitControls
           ref={controlsRef}

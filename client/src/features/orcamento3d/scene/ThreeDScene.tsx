@@ -13,11 +13,12 @@ interface Props {
   selfPeerId: string;
   role: Role;
   name: string;
+  touch?: boolean;
   onSelfMove: (x: number, z: number, ry: number) => void;
   onMoving?: (moving: boolean) => void;
 }
 
-export default function ThreeDScene({ peers, selfPeerId, role, name, onSelfMove, onMoving }: Props) {
+export default function ThreeDScene({ peers, selfPeerId, role, name, touch, onSelfMove, onMoving }: Props) {
   const { doc, cameraMode, selectedUid, select, updateFurniture, readOnly, activeFloor, wallMode, isFloorVisible } = useStudio();
   const [dragging, setDragging] = useState(false);
   const [, setMoving] = useState(false);
@@ -88,6 +89,7 @@ export default function ThreeDScene({ peers, selfPeerId, role, name, onSelfMove,
         bounds={bounds}
         floorY={floorY}
         orbitEnabled={!dragging}
+        touch={touch}
         onSelfMove={onSelfMove}
         onMovingChange={(m) => { setMoving(m); onMoving?.(m); }}
       />

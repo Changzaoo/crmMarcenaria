@@ -111,3 +111,40 @@ export const FURNITURE_BY_ID = Object.fromEntries(FURNITURE.map((f) => [f.id, f]
 export function getFurnitureDef(id: string): FurnitureDef | undefined {
   return FURNITURE_BY_ID[id];
 }
+
+// Deduz a FORMA (kind) de um móvel a partir de categoria/nome/dimensões.
+// Usado como rede de segurança para que móveis vindos do site público (que podem
+// ter catalogId/versão diferente) renderizem com o formato certo no CRM, em vez
+// de virarem um "cabinet" genérico.
+export function inferFurnitureKind(o: {
+  category?: string;
+  name?: string;
+  width?: number;
+  height?: number;
+  depth?: number;
+}): FurnitureKind {
+  const t = `${o.category || ""} ${o.name || ""}`
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
+  const has = (...ks: string[]) => ks.some((k) => t.includes(k));
+
+  if (has("ilha")) return "island";
+  if (has("painel", "tv", "logo")) return "tvpanel";
+  if (has("nicho")) return "niche";
+  if (has("gondola")) return "gondola";
+  if (has("vitrine", "expositor", "expo")) return "display";
+  if (has("recepcao", "quiosque", "caixa")) return "reception";
+  if (has("mesa", "estacao", "escrivaninha")) return "table";
+  if (has("bancada")) return "bench";
+  if (has("balcao", "atendimento", "rack")) return "counter";
+  if (has("closet", "guarda-roupa", "guarda roupa", "roupeiro", "modulo")) return "wardrobe";
+  if (has("prateleira", "estante", "sapateira", "nicheira")) return "shelf";
+
+  // Sem pistas no texto: usa as proporções como dica.
+  const h = o.height ?? 1;
+  const d = o.depth ?? 0;
+  if (h <= 0.12) return "shelf"; // peça fina e baixa = prateleira
+  if (h <= 0.95 && d >= 0.4) return "counter"; // baixo e profundo = balcão/bancada
+  return "cabinet";
+}

@@ -1,5 +1,7 @@
 // Tipos compartilhados do Estúdio de Orçamento 3D.
 
+import type { FurnitureKind } from "./furnitureCatalog";
+
 export type CameraMode = "primeira" | "terceira" | "isometrica" | "topo";
 
 export type Role = "cliente" | "arquiteto";
@@ -36,6 +38,7 @@ export interface EnvironmentConfig {
 export interface FurnitureInstance {
   uid: string; // instância única no projeto
   catalogId: string; // referência ao catálogo
+  kind?: FurnitureKind; // forma 3D persistida na instância (autodescritiva)
   category: string;
   name: string;
   floor: number; // andar (0 = térreo)
@@ -48,6 +51,10 @@ export interface FurnitureInstance {
   material: string; // id do material
   color: string; // hex do acabamento
   locked: boolean;
+  /** modelo 3D importado (data URL) — quando presente, renderiza o arquivo
+      do cliente no lugar da geometria gerada. */
+  modelUrl?: string;
+  modelFormat?: string; // glb | gltf | obj | stl | fbx
 }
 
 export interface Project3DDoc {

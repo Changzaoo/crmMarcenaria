@@ -1,12 +1,37 @@
-import { useMemo, useState } from "react";
-import { Search, X } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
+import { Search, X, Upload } from "lucide-react";
 import { useStudio } from "../store";
 import { porCategoria } from "../services/furnitureService";
+import { ACCEPTED_3D, importModelFile } from "../modelImport";
+import { useUI } from "../../../components/ui";
 
 export default function FurnitureLibrary({ onClose }: { onClose?: () => void }) {
-  const { addFurniture } = useStudio();
+  const { addFurniture, addImportedModel } = useStudio();
+  const { toast } = useUI();
   const [busca, setBusca] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importando, setImportando] = useState(false);
   const grupos = useMemo(() => porCategoria(), []);
+
+  const onImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setImportando(true);
+    try {
+      const m = await importModelFile(file);
+      addImportedModel({ name: m.name, url: m.dataUrl, format: m.format, size: m.size });
+      toast(
+        m.tooBig
+          ? "Modelo importado. Atenção: arquivo grande pode não sincronizar."
+          : "Modelo 3D importado e adicionado à cena."
+      );
+    } catch (err: any) {
+      toast(err?.message || "Não foi possível importar este modelo.", "err");
+    } finally {
+      setImportando(false);
+    }
+  };
 
   const filtrados = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -28,6 +53,16 @@ export default function FurnitureLibrary({ onClose }: { onClose?: () => void }) 
         <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
         <input className="input pl-9" placeholder="Buscar móvel ou categoria..." value={busca} onChange={(e) => setBusca(e.target.value)} />
       </div>
+
+      <input ref={fileRef} type="file" accept={ACCEPTED_3D} className="hidden" onChange={onImport} />
+      <button
+        onClick={() => fileRef.current?.click()}
+        disabled={importando}
+        className="mb-3 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-champagne/40 bg-champagne/5 px-3 py-2 text-xs font-medium text-champagne transition hover:bg-champagne/10 disabled:opacity-60"
+        title="Importar modelo .glb, .gltf, .obj, .stl ou .fbx"
+      >
+        <Upload size={14} /> {importando ? "Importando…" : "Importar modelo 3D"}
+      </button>
 
       <div className="flex-1 overflow-y-auto pr-1 space-y-4">
         {filtrados.map((g) => (

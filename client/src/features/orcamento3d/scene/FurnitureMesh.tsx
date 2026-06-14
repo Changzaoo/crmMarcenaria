@@ -1,14 +1,50 @@
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ThreeEvent } from "@react-three/fiber";
 import { Edges, Html } from "@react-three/drei";
-import { Plane as ThreePlane, Vector3 } from "three";
+import { Plane as ThreePlane, Vector3, Object3D } from "three";
 import type { FurnitureInstance } from "../types";
 import { getMaterial } from "../materials";
 import type { FurnitureKind } from "../furnitureCatalog";
-import { getFurnitureDef } from "../furnitureCatalog";
+import { getFurnitureDef, inferFurnitureKind } from "../furnitureCatalog";
+import { fitObject, loadModelObject, type ModelFormat } from "../modelImport";
 
 const STONE = "#dedbd4";
 const BRASS = "#c8a24a";
+
+// Modelo 3D importado pelo cliente (glb/gltf/obj/stl/fbx).
+function ImportedModel({ item }: { item: FurnitureInstance }) {
+  const [obj, setObj] = useState<Object3D | null>(null);
+  const url = item.modelUrl!;
+  const fmt = (item.modelFormat || "glb") as ModelFormat;
+  const w = item.width;
+  const h = item.height;
+  const d = item.depth;
+
+  useEffect(() => {
+    let alive = true;
+    setObj(null);
+    loadModelObject(url, fmt)
+      .then((o) => {
+        if (!alive) return;
+        fitObject(o, { w, h, d });
+        setObj(o);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [url, fmt, w, h, d]);
+
+  if (!obj) {
+    return (
+      <mesh position={[0, h / 2, 0]}>
+        <boxGeometry args={[w, h, d]} />
+        <meshStandardMaterial color="#3a3128" roughness={0.8} transparent opacity={0.5} />
+      </mesh>
+    );
+  }
+  return <primitive object={obj} />;
+}
 
 interface Props {
   item: FurnitureInstance;
@@ -63,7 +99,10 @@ export default function FurnitureMesh({ item, selected, draggable, floorY, ghost
     (e.target as Element).releasePointerCapture?.(e.pointerId);
   };
 
-  const kind: FurnitureKind = getFurnitureDef(item.catalogId)?.kind ?? "cabinet";
+  // Prioriza a forma persistida na instância; cai para o catálogo local; e, se o
+  // móvel veio de um catálogo desconhecido (ex.: site público), infere a forma —
+  // assim o CRM renderiza o móvel igual ao que o cliente colocou.
+  const kind: FurnitureKind = item.kind ?? getFurnitureDef(item.catalogId)?.kind ?? inferFurnitureKind(item);
 
   return (
     <group
@@ -73,7 +112,11 @@ export default function FurnitureMesh({ item, selected, draggable, floorY, ghost
       onPointerMove={handleMove}
       onPointerUp={handleUp}
     >
-      <Geometry kind={kind} w={w} h={h} d={d} color={color} mat={mat} />
+      {item.modelUrl ? (
+        <ImportedModel item={item} />
+      ) : (
+        <Geometry kind={kind} w={w} h={h} d={d} color={color} mat={mat} />
+      )}
 
       {/* Seleção: contorno + halo no piso + medidas */}
       {selected && !ghost && (
