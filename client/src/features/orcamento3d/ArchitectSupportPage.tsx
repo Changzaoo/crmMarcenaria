@@ -5,6 +5,7 @@ import { PageHeader, Card, Badge, EmptyState, Spinner, useUI } from "../../compo
 import { dataHora, whatsappLink } from "../../lib/format";
 import { listarLeads, atualizarLead, STATUS_LEAD } from "./services/leadService";
 import type { Lead3D } from "./services/leadService";
+import { dlog } from "./dlog";
 
 const TONE: Record<string, "default" | "gold" | "green" | "red" | "blue" | "wood"> = {
   Novo: "blue",
@@ -60,6 +61,7 @@ export default function ArchitectSupportPage() {
       setLeads((ls) => ls.map((x) => (x.id === l.id ? { ...x, arquiteto_solicitado: 0 } : x)));
       atualizarLead(l.id, { arquiteto_solicitado: 0 }).catch(() => {});
     }
+    dlog("CRM_CALL", "Arquiteto aceitou/entrou:", { leadId: l.id, projetoId: l.projeto_id });
     navigate(`/suporte-3d/sessao/${l.projeto_id}`);
   }
 

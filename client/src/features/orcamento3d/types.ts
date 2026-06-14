@@ -64,6 +64,8 @@ export interface Peer {
   x: number;
   z: number;
   ry: number;
+  floor?: number;
+  moving?: boolean;
   color?: string | null;
   online: boolean;
 }

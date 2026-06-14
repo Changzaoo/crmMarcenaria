@@ -1,10 +1,11 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { ArrowLeft, FileText, Keyboard, Layers, PhoneCall, Save, Sofa, SlidersHorizontal } from "lucide-react";
 import { useUI } from "../../components/ui";
 import { StudioProvider, useStudio } from "./store";
 import type { Project3DDoc, Role, SessionState } from "./types";
-import { CollaborationSession } from "./services/collaborationService";
+import { WsCollaborationSession, myPeerId } from "./services/wsCollaboration";
 import { salvarProjeto, enviarParaAnalise, chamarArquiteto } from "./services/project3DService";
+import { dlog } from "./dlog";
 import ThreeDScene from "./scene/ThreeDScene";
 import SceneErrorBoundary from "./scene/SceneErrorBoundary";
 import CameraModeSelector from "./ui/CameraModeSelector";
@@ -64,58 +65,50 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
   const [propsOpen, setPropsOpen] = useState(false);
   const [mostrarAtalhos, setMostrarAtalhos] = useState(false);
 
-  const peerId = useMemo(() => `${role}_${Math.random().toString(36).slice(2, 9)}`, [role]);
-  const collabRef = useRef<CollaborationSession | null>(null);
+  const peerId = myPeerId;
+  const collabRef = useRef<WsCollaborationSession | null>(null);
   const localDocRef = useRef<Project3DDoc>(doc);
-  const lastSelfPushRev = useRef(-1);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // ---- Colaboração (relay por polling) ----
+  // ---- Colaboração em tempo real (mesmo relay WS do site) ----
   useEffect(() => {
-    const collab = new CollaborationSession({
+    const collab = new WsCollaborationSession({
       projetoId,
-      peerId,
       role,
       nome: role === "arquiteto" ? "Especialista LINEAR" : clienteNome,
       color: peerColor(role),
-      onState: (state) => {
-        setSession(state);
-        // aplica documento remoto (last-write-wins), ignorando o próprio eco
-        if (
-          state.doc &&
-          state.docRev !== lastSelfPushRev.current &&
-          JSON.stringify(state.doc) !== JSON.stringify(localDocRef.current)
-        ) {
-          localDocRef.current = state.doc;
-          replaceDoc(state.doc);
+      onState: (state) => setSession(state),
+      onRemoteDoc: (remote) => {
+        // aplica doc remoto sem reemitir (replaceDoc não notifica onDocChange)
+        if (JSON.stringify(remote) !== JSON.stringify(localDocRef.current)) {
+          localDocRef.current = remote;
+          replaceDoc(remote);
+          dlog("REALTIME", "Doc remoto aplicado na sessão do arquiteto");
         }
       },
     });
     collab.start();
     collabRef.current = collab;
-    // Semeia a sessão com o ambiente atual (carregado do banco) para que quem
-    // entrar veja o ambiente do lead imediatamente — o relay não fica mais
-    // esperando a primeira edição. O servidor ignora o seed se a sessão já tiver
-    // um documento ao vivo, então não há risco de sobrescrever edições em curso.
-    collab.pushDoc(localDocRef.current, { seed: true }).then((r) => {
-      if (r?.docRev != null) lastSelfPushRev.current = r.docRev;
-    });
+    dlog("3D_SESSION", "Arquiteto/CRM entrou na sessão:", { projetoId, peerId, role });
     return () => {
-      void collab.stop();
+      collab.stop();
       collabRef.current = null;
+      dlog("3D_SESSION", "Sessão encerrada:", { projetoId });
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projetoId, peerId, role]);
+  }, [projetoId, role]);
+
+  // ---- Espelha o andar ativo na presença (avatar no andar certo) ----
+  useEffect(() => {
+    collabRef.current?.setFloor(activeFloor);
+  }, [activeFloor]);
 
   // ---- Reage a mudanças locais: publica na sessão + autosave ----
   useEffect(() => {
     return onDocChange((next) => {
       localDocRef.current = next;
       setSalvo(false);
-      // publica para a sessão colaborativa
-      collabRef.current?.pushDoc(next).then((r) => {
-        if (r?.docRev != null) lastSelfPushRev.current = r.docRev;
-      });
+      collabRef.current?.pushDoc(next); // doc canônico para a sala
       // autosave debounce
       if (saveTimer.current) clearTimeout(saveTimer.current);
       saveTimer.current = setTimeout(() => void persistir(next, true), 1500);
@@ -273,6 +266,7 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
                   role={role}
                   name={role === "arquiteto" ? "Especialista" : clienteNome}
                   onSelfMove={(x, z, ry) => collabRef.current?.updateSelf(x, z, ry)}
+                  onMoving={(m) => collabRef.current?.setMoving(m)}
                 />
               </Suspense>
             </SceneErrorBoundary>

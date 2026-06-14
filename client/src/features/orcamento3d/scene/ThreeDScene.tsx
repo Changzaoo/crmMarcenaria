@@ -14,9 +14,10 @@ interface Props {
   role: Role;
   name: string;
   onSelfMove: (x: number, z: number, ry: number) => void;
+  onMoving?: (moving: boolean) => void;
 }
 
-export default function ThreeDScene({ peers, selfPeerId, role, name, onSelfMove }: Props) {
+export default function ThreeDScene({ peers, selfPeerId, role, name, onSelfMove, onMoving }: Props) {
   const { doc, cameraMode, selectedUid, select, updateFurniture, readOnly, activeFloor, wallMode, isFloorVisible } = useStudio();
   const [dragging, setDragging] = useState(false);
   const [, setMoving] = useState(false);
@@ -70,12 +71,13 @@ export default function ThreeDScene({ peers, selfPeerId, role, name, onSelfMove 
         );
       })}
 
-      {/* Participantes remotos (no andar ativo) */}
+      {/* Participantes remotos — cada um no Y do seu próprio andar */}
       {peers
         .filter((p) => p.peerId !== selfPeerId)
+        .filter((p) => isFloorVisible(p.floor ?? 0))
         .map((p) => (
-          <group key={p.peerId} position={[p.x, floorY, p.z]} rotation={[0, p.ry, 0]}>
-            <Avatar role={p.role} name={p.nome} moving={false} color={p.color || undefined} />
+          <group key={p.peerId} position={[p.x, (p.floor ?? 0) * H, p.z]} rotation={[0, p.ry, 0]}>
+            <Avatar role={p.role} name={p.nome} moving={!!p.moving} color={p.color || undefined} />
           </group>
         ))}
 
@@ -87,7 +89,7 @@ export default function ThreeDScene({ peers, selfPeerId, role, name, onSelfMove 
         floorY={floorY}
         orbitEnabled={!dragging}
         onSelfMove={onSelfMove}
-        onMovingChange={setMoving}
+        onMovingChange={(m) => { setMoving(m); onMoving?.(m); }}
       />
 
       <ContactShadows position={[0, floorY + 0.005, 0]} opacity={0.45} scale={Math.max(bounds.L, bounds.C) * 1.4} blur={2.4} far={4} />
