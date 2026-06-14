@@ -89,6 +89,7 @@ export async function criarLeadEProjeto(b) {
       faixa_orcamento: b.faixa_orcamento || null,
       descricao: b.descricao || null,
       aceite: !!b.aceite,
+      origem: b.origem || "Orçamento 3D",
       projeto_id: projetoId,
     });
     await insere("projetos_3d", {
@@ -102,8 +103,8 @@ export async function criarLeadEProjeto(b) {
   }
 
   db.prepare(
-    `INSERT INTO leads_3d (id, nome, email, whatsapp, cidade_estado, tipo_projeto, prazo, faixa_orcamento, descricao, aceite, projeto_id)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?)`
+    `INSERT INTO leads_3d (id, nome, email, whatsapp, cidade_estado, tipo_projeto, prazo, faixa_orcamento, descricao, aceite, origem, projeto_id)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
   ).run(
     leadId,
     b.nome,
@@ -115,6 +116,7 @@ export async function criarLeadEProjeto(b) {
     b.faixa_orcamento || null,
     b.descricao || null,
     b.aceite ? 1 : 0,
+    b.origem || "Orçamento 3D",
     projetoId
   );
   db.prepare("INSERT INTO projetos_3d (id, lead_id, nome, doc, status) VALUES (?,?,?,?,?)").run(

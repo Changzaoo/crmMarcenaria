@@ -173,11 +173,14 @@ export default function CRM() {
                               className={`card p-3 cursor-pointer hover:border-champagne/30 ${s.isDragging ? "shadow-glow rotate-1" : ""}`}>
                               <div className="flex items-start justify-between gap-2">
                                 <div className="text-sm font-medium leading-snug">{n.titulo}</div>
-                                {n.projeto_3d_id && (
+                                {n.projeto_3d_id && n.origem === "Orçamento 3D" && (
                                   <span className="shrink-0 rounded-full border border-sky-400/40 bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-sky-200">3D</span>
                                 )}
+                                {n.origem === "Solicitar proposta" && (
+                                  <span className="shrink-0 rounded-full border border-champagne/40 bg-champagne/15 px-1.5 py-0.5 text-[9px] font-semibold text-champagne">Site</span>
+                                )}
                               </div>
-                              <div className="text-xs text-muted mt-1">{n.empresa_nome || (n.origem === "Orçamento 3D" ? "Estúdio 3D" : "—")}</div>
+                              <div className="text-xs text-muted mt-1">{n.empresa_nome || (n.origem === "Orçamento 3D" ? "Estúdio 3D" : n.origem === "Solicitar proposta" ? "Solicitação do site" : "—")}</div>
                               <div className="flex items-center justify-between mt-2">
                                 <span className="text-champagne text-sm font-semibold">{moedaCurta(n.valor_estimado)}</span>
                                 <span className="text-[10px] text-muted">{n.probabilidade}%</span>
@@ -424,13 +427,16 @@ function Resumo3D({ neg }: { neg: NegocioDetalhe }) {
   const est = d?.estimativa;
   const moveis = d?.moveis || [];
   const ambiente = d?.ambiente;
+  const ehProposta = neg.origem === "Solicitar proposta" || (moveis.length === 0 && !est);
 
   return (
     <div className="card p-3 bg-surfaceSoft space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <span className="rounded-full border border-sky-400/40 bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-sky-200">3D</span>
-          <span className="label !mb-0">Orçamento 3D</span>
+          <span className={`rounded-full border px-1.5 py-0.5 text-[9px] font-semibold ${ehProposta ? "border-champagne/40 bg-champagne/15 text-champagne" : "border-sky-400/40 bg-sky-500/15 text-sky-200"}`}>
+            {ehProposta ? "Site" : "3D"}
+          </span>
+          <span className="label !mb-0">{ehProposta ? "Solicitação de proposta" : "Orçamento 3D"}</span>
         </div>
         {d?.leadScore && <Badge tone="gold">{d.leadScore}</Badge>}
       </div>
@@ -485,9 +491,14 @@ function Resumo3D({ neg }: { neg: NegocioDetalhe }) {
         </div>
       )}
 
-      {d?.descricao && <p className="text-xs text-muted whitespace-pre-line">{d.descricao}</p>}
+      {d?.descricao && (
+        <div>
+          <div className="label">{ehProposta ? "Mensagem" : "Observações"}</div>
+          <p className="text-xs text-muted whitespace-pre-line">{d.descricao}</p>
+        </div>
+      )}
 
-      {projetoId && (
+      {projetoId && moveis.length > 0 && (
         <div className="flex gap-2 pt-1">
           <button className="btn-ghost flex-1" onClick={() => nav(`/suporte-3d/ver/${projetoId}`)}>Ver ambiente 3D</button>
           <button className="btn-primary flex-1" onClick={() => nav(`/suporte-3d/sessao/${projetoId}`)}>Entrar na sessão</button>

@@ -75,11 +75,14 @@ function valorEstimado(doc, dados) {
   return 0;
 }
 
-/** Decide se um lead 3D merece virar card no funil. */
+const isProposta = (lead) => (lead.origem || "").toString().toLowerCase().includes("proposta");
+
+/** Decide se um lead merece virar card no funil. */
 function elegivel(lead, doc) {
   const temMoveis = Array.isArray(doc.furniture) && doc.furniture.length > 0;
   const enviado = (lead.projeto_status || lead.status || "").toString().toLowerCase().includes("envi");
-  return temMoveis || enviado || !!lead.arquiteto_solicitado;
+  // Solicitações de proposta (formulário do site) sempre entram como Lead.
+  return temMoveis || enviado || !!lead.arquiteto_solicitado || isProposta(lead);
 }
 
 const selExistente = db.prepare("SELECT id, etapa FROM negocios WHERE projeto_3d_id = ?");
@@ -109,7 +112,9 @@ export async function sincronizarFunil3d() {
     if (!elegivel(lead, doc)) continue;
 
     const dados = montarDados3d(lead, projeto, doc);
-    const titulo = (doc.projectName || `Orçamento 3D — ${lead.nome || "Cliente"}`).slice(0, 120);
+    const proposta = isProposta(lead);
+    const padrao = proposta ? `Proposta — ${lead.nome || "Cliente"}` : `Orçamento 3D — ${lead.nome || "Cliente"}`;
+    const titulo = (doc.projectName || padrao).slice(0, 120);
     const valor = valorEstimado(doc, dados);
     const dadosJson = JSON.stringify(dados);
 
@@ -122,8 +127,8 @@ export async function sincronizarFunil3d() {
       const prob = lead.arquiteto_solicitado ? 50 : 30;
       insertNeg.run(
         titulo,
-        lead.tipo_projeto || "Orçamento 3D",
-        "Orçamento 3D",
+        lead.tipo_projeto || (proposta ? "Solicitação" : "Orçamento 3D"),
+        lead.origem || "Orçamento 3D",
         "Lead",
         valor,
         prob,

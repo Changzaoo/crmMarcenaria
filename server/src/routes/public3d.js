@@ -34,6 +34,32 @@ r.post(
   })
 );
 
+// ---------- Solicitar proposta (formulário do site → fileira Lead) ----------
+r.post(
+  "/solicitar-proposta",
+  asyncRoute(async (req, res) => {
+    const b = req.body || {};
+    if (!b.nome || !b.email || !b.whatsapp) {
+      return res.status(400).json({ erro: "Preencha nome, e-mail e WhatsApp." });
+    }
+    if (!b.aceite) {
+      return res.status(400).json({ erro: "É necessário aceitar o contato da equipe." });
+    }
+    const { leadId } = await criarLeadEProjeto({
+      nome: b.nome,
+      email: b.email,
+      whatsapp: b.whatsapp,
+      cidade_estado: b.cidade_estado,
+      tipo_projeto: b.tipo_projeto,
+      descricao: b.mensagem || b.descricao,
+      aceite: !!b.aceite,
+      origem: "Solicitar proposta",
+      doc: {},
+    });
+    res.json({ leadId });
+  })
+);
+
 // ---------- Projeto 3D (carregar / salvar) ----------
 r.get(
   "/projetos-3d/:id",

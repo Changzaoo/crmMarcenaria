@@ -53,6 +53,11 @@ export default function PlayerAndCamera({
   // ref compartilhado entre as câmeras (só uma monta por vez); `any` evita o
   // conflito de tipos entre PerspectiveCamera e OrthographicCamera.
   const camRef = useRef<any>(null);
+  const controlsRef = useRef<any>(null);
+  // Contador de frames para reaplicar o enquadramento ortográfico logo na entrada
+  // (contorna o makeDefault do drei sob StrictMode, que às vezes não assume e deixa
+  // a cena sendo vista pela câmera default do R3F, colada na origem).
+  const fitFrames = useRef(0);
 
   const walk = mode === "primeira" || mode === "terceira";
   const maxDim = Math.max(bounds.L, bounds.C);
@@ -81,7 +86,33 @@ export default function PlayerAndCamera({
     cam.updateProjectionMatrix?.();
   }, [floorY, mode, orthoZoom, set]);
 
+  // Reinicia o enquadramento sempre que o modo, o ambiente, o andar ou o tamanho
+  // do viewport mudam — força reaplicar a câmera ortográfica nos próximos frames.
+  useLayoutEffect(() => {
+    fitFrames.current = 0;
+  }, [mode, bounds.L, bounds.C, floorY, size.width, size.height]);
+
   useFrame((state, delta) => {
+    // ---- Garante que a câmera ortográfica (iso/topo) assuma e fique enquadrada ----
+    // Reaplica nos primeiros frames após (re)montar/trocar de modo. Depois libera o
+    // OrbitControls para o usuário navegar livremente.
+    if (mode === "isometrica" || mode === "topo") {
+      const cam = camRef.current;
+      if (cam && fitFrames.current < 4) {
+        fitFrames.current++;
+        if (state.camera !== cam) set({ camera: cam });
+        cam.zoom = orthoZoom;
+        if (mode === "isometrica") cam.position.set(maxDim, maxDim + floorY, maxDim);
+        else cam.position.set(0, maxDim * 1.6 + floorY, 0.001);
+        cam.updateProjectionMatrix();
+        const c = controlsRef.current;
+        if (c) {
+          c.target.set(0, floorY + (mode === "topo" ? 0 : 0.5), 0);
+          c.update();
+        }
+      }
+    }
+
     const k = keys.current;
     const fwd = (k.KeyW || k.ArrowUp ? 1 : 0) - (k.KeyS || k.ArrowDown ? 1 : 0);
     const side = (k.KeyD || k.ArrowRight ? 1 : 0) - (k.KeyA || k.ArrowLeft ? 1 : 0);
@@ -169,6 +200,7 @@ export default function PlayerAndCamera({
       {mode === "primeira" && <PointerLockControls />}
       {(mode === "isometrica" || mode === "topo") && (
         <OrbitControls
+          ref={controlsRef}
           makeDefault
           enabled={orbitEnabled}
           enableRotate={mode === "isometrica"}
