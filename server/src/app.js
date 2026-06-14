@@ -12,7 +12,8 @@ export function createApp() {
   const app = express();
 
   const ALLOWED_ORIGINS = (
-    process.env.ALLOWED_ORIGINS || "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5174"
+    process.env.ALLOWED_ORIGINS ||
+    "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5174,https://linea-marcenaria.vercel.app,https://crm-marcenaria.vercel.app"
   )
     .split(",")
     .map((origin) => origin.trim())
