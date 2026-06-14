@@ -3,7 +3,7 @@ import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { moeda, moedaCurta, data, vencido, whatsappLink, aplicarTemplate } from "../lib/format";
-import { Negocio, NegocioDetalhe, Empresa, EmpresaDetalhe, TemplateWhatsapp, ETAPAS_CRM, SEGMENTOS, ORIGENS, MOTIVOS_PERDA } from "../types";
+import { Negocio, NegocioDetalhe, Dados3D, Empresa, EmpresaDetalhe, TemplateWhatsapp, ETAPAS_CRM, SEGMENTOS, ORIGENS, MOTIVOS_PERDA } from "../types";
 import { PageHeader, Card, Modal, Field, Input, Select, Textarea, Badge, useUI, Spinner } from "../components/ui";
 
 const ABERTAS = ETAPAS_CRM.filter((e) => e !== "Perdido");
@@ -36,8 +36,29 @@ export default function CRM() {
     }
   };
 
+  const [sincronizando, setSincronizando] = useState(false);
+
+  // Importa os Orçamentos 3D para o funil (idempotente). Best-effort.
+  const sincronizar3d = async (avisar = false) => {
+    try {
+      const out = await api.post<{ criados: number; atualizados: number }>("/negocios/sincronizar-3d", {});
+      if (avisar) {
+        toast(
+          out.criados || out.atualizados
+            ? `Orçamentos 3D sincronizados: ${out.criados} novo(s), ${out.atualizados} atualizado(s).`
+            : "Nenhum Orçamento 3D novo para importar.",
+        );
+      }
+      return out;
+    } catch {
+      if (avisar) toast("Não foi possível sincronizar os Orçamentos 3D agora.", "err");
+      return null;
+    }
+  };
+
   const carregarTudo = async () => {
     try {
+      await sincronizar3d(); // traz Orçamentos 3D para o funil antes de listar
       const [dadosNegocios, dadosEmpresas] = await Promise.all([
         api.get<Negocio[]>("/negocios"),
         api.get<Empresa[]>("/empresas"),
@@ -51,6 +72,13 @@ export default function CRM() {
       setErroCarga(msg);
       toast(msg, "err");
     }
+  };
+
+  const sincronizarManual = async () => {
+    setSincronizando(true);
+    await sincronizar3d(true);
+    await carregar();
+    setSincronizando(false);
   };
 
   useEffect(() => { carregarTudo(); }, []);
@@ -109,7 +137,14 @@ export default function CRM() {
   return (
     <div>
       <PageHeader title="Funil comercial" subtitle="Arraste os cards entre as etapas"
-        actions={<button data-tour="page-action" className="btn-primary" onClick={() => setNovo({ etapa: "Lead", probabilidade: 30, valor_estimado: 0, origem: "site", segmento: "loja" })}>+ Novo lead</button>} />
+        actions={
+          <div className="flex gap-2">
+            <button className="btn-ghost" onClick={sincronizarManual} disabled={sincronizando}>
+              {sincronizando ? "Sincronizando…" : "↻ Orçamentos 3D"}
+            </button>
+            <button data-tour="page-action" className="btn-primary" onClick={() => setNovo({ etapa: "Lead", probabilidade: 30, valor_estimado: 0, origem: "site", segmento: "loja" })}>+ Novo lead</button>
+          </div>
+        } />
 
       <DragDropContext onDragEnd={onDragEnd}>
         <div data-tour="crm-board" className="flex gap-3 overflow-x-auto pb-4">
@@ -136,8 +171,13 @@ export default function CRM() {
                             <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps}
                               onClick={() => setDetalheId(n.id)}
                               className={`card p-3 cursor-pointer hover:border-champagne/30 ${s.isDragging ? "shadow-glow rotate-1" : ""}`}>
-                              <div className="text-sm font-medium leading-snug">{n.titulo}</div>
-                              <div className="text-xs text-muted mt-1">{n.empresa_nome || "—"}</div>
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="text-sm font-medium leading-snug">{n.titulo}</div>
+                                {n.projeto_3d_id && (
+                                  <span className="shrink-0 rounded-full border border-sky-400/40 bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-sky-200">3D</span>
+                                )}
+                              </div>
+                              <div className="text-xs text-muted mt-1">{n.empresa_nome || (n.origem === "Orçamento 3D" ? "Estúdio 3D" : "—")}</div>
                               <div className="flex items-center justify-between mt-2">
                                 <span className="text-champagne text-sm font-semibold">{moedaCurta(n.valor_estimado)}</span>
                                 <span className="text-[10px] text-muted">{n.probabilidade}%</span>
@@ -298,6 +338,8 @@ function NegocioPainel({ id, onClose }: { id: number; onClose: () => void }) {
             <Info label="Responsável" value={neg.responsavel} />
           </div>
 
+          {(neg.projeto_3d_id || neg.dados_3d) && <Resumo3D neg={neg} />}
+
           {contato?.telefone && (
             <div className="pt-2">
               <div className="label">Enviar WhatsApp</div>
@@ -367,4 +409,90 @@ function NegocioPainel({ id, onClose }: { id: number; onClose: () => void }) {
 
 function Info({ label, value }: { label: string; value?: string | null }) {
   return <div><div className="text-[11px] text-muted">{label}</div><div className="font-medium">{value || "—"}</div></div>;
+}
+
+// ---------- Resumo do Orçamento 3D dentro do negócio ----------
+function Resumo3D({ neg }: { neg: NegocioDetalhe }) {
+  const nav = useNavigate();
+  let d: Dados3D | null = null;
+  try {
+    d = neg.dados_3d ? (JSON.parse(neg.dados_3d) as Dados3D) : null;
+  } catch {
+    d = null;
+  }
+  const projetoId = neg.projeto_3d_id || d?.projetoId;
+  const est = d?.estimativa;
+  const moveis = d?.moveis || [];
+  const ambiente = d?.ambiente;
+
+  return (
+    <div className="card p-3 bg-surfaceSoft space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span className="rounded-full border border-sky-400/40 bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-sky-200">3D</span>
+          <span className="label !mb-0">Orçamento 3D</span>
+        </div>
+        {d?.leadScore && <Badge tone="gold">{d.leadScore}</Badge>}
+      </div>
+
+      {est && (
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-lg border border-white/10 bg-surface/40 py-2">
+            <div className="text-sm font-semibold text-champagne">{moeda(est.min)}</div>
+            <div className="text-[10px] text-muted">estimativa mín.</div>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-surface/40 py-2">
+            <div className="text-sm font-semibold text-champagne">{moeda(est.max)}</div>
+            <div className="text-[10px] text-muted">estimativa máx.</div>
+          </div>
+          <div className="rounded-lg border border-white/10 bg-surface/40 py-2">
+            <div className="text-sm font-semibold">{est.prazoDias?.[0]}–{est.prazoDias?.[1]}</div>
+            <div className="text-[10px] text-muted">dias úteis</div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <Info label="Tipo de projeto" value={d?.tipo_projeto} />
+        <Info label="Cidade / Estado" value={d?.cidade_estado} />
+        <Info label="Prazo desejado" value={d?.prazo} />
+        <Info label="Faixa de orçamento" value={d?.faixa_orcamento} />
+        {ambiente && (
+          <Info
+            label="Ambiente"
+            value={`${ambiente.largura ?? "?"}×${ambiente.comprimento ?? "?"} m · ${ambiente.andares ?? 1} andar(es)`}
+          />
+        )}
+        <Info label="WhatsApp" value={d?.whatsapp} />
+      </div>
+
+      {moveis.length > 0 && (
+        <div>
+          <div className="label">Móveis ({moveis.length})</div>
+          <div className="max-h-44 overflow-y-auto pr-1 space-y-1">
+            {moveis.map((m, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 rounded-lg border border-white/5 bg-surface/30 px-2 py-1 text-xs">
+                <div className="min-w-0">
+                  <div className="truncate font-medium">{m.nome}</div>
+                  <div className="text-[10px] text-muted truncate">
+                    {m.largura_cm}×{m.altura_cm}×{m.profundidade_cm} cm · {m.material}
+                  </div>
+                </div>
+                <span className="shrink-0 text-champagne">{moeda(m.preco)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {d?.descricao && <p className="text-xs text-muted whitespace-pre-line">{d.descricao}</p>}
+
+      {projetoId && (
+        <div className="flex gap-2 pt-1">
+          <button className="btn-ghost flex-1" onClick={() => nav(`/suporte-3d/ver/${projetoId}`)}>Ver ambiente 3D</button>
+          <button className="btn-primary flex-1" onClick={() => nav(`/suporte-3d/sessao/${projetoId}`)}>Entrar na sessão</button>
+        </div>
+      )}
+    </div>
+  );
 }

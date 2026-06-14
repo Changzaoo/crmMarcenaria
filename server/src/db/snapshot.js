@@ -1,5 +1,15 @@
 import { db } from "./index.js";
 import { TABELAS } from "./tables.js";
+import { CATEGORIAS_PADRAO, inferirModelo } from "./schema.js";
+
+// Garante categorias do catálogo após restaurar (snapshots antigos não as trazem).
+function garantirCategorias() {
+  if (db.prepare("SELECT COUNT(*) c FROM categorias").get().c > 0) return;
+  const ins = db.prepare("INSERT OR IGNORE INTO categorias (nome, modelo, ordem) VALUES (?,?,?)");
+  CATEGORIAS_PADRAO.forEach((c, i) => ins.run(c.nome, c.modelo, i));
+  const extras = db.prepare("SELECT DISTINCT categoria FROM materiais").all().map((x) => x.categoria);
+  extras.forEach((nome, i) => ins.run(nome, inferirModelo(nome), 100 + i));
+}
 
 export function dumpDatabase() {
   const dump = { _gerado_em: new Date().toISOString(), _versao: 1 };
@@ -30,6 +40,8 @@ export function restoreDatabase(dump) {
 
       for (const row of rows) stmt.run(...colunas.map((coluna) => row[coluna]));
     }
+
+    garantirCategorias();
 
     db.pragma("foreign_keys = ON");
   })();

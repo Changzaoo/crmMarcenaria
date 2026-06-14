@@ -69,6 +69,15 @@ CREATE TABLE IF NOT EXISTS materiais (
   ativo INTEGER NOT NULL DEFAULT 1
 );
 
+CREATE TABLE IF NOT EXISTS categorias (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nome TEXT NOT NULL UNIQUE,
+  modelo TEXT NOT NULL DEFAULT 'outro',
+  descricao TEXT,
+  ordem INTEGER NOT NULL DEFAULT 0,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS orcamentos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   negocio_id INTEGER REFERENCES negocios(id) ON DELETE SET NULL,
@@ -267,3 +276,43 @@ export const ETAPAS_CRM = [
   "Fechado (ganho)",
   "Perdido",
 ];
+
+// Modelos 3D disponíveis para ilustrar uma categoria do catálogo.
+export const MODELOS_CATEGORIA = [
+  "chapa",
+  "fita",
+  "ferragem",
+  "iluminacao",
+  "pedra",
+  "cuba",
+  "insumo",
+  "maodeobra",
+  "outro",
+];
+
+// Categorias padrão criadas na primeira subida (cada uma com seu modelo 3D).
+export const CATEGORIAS_PADRAO = [
+  { nome: "Chapa", modelo: "chapa" },
+  { nome: "Fita", modelo: "fita" },
+  { nome: "Ferragem", modelo: "ferragem" },
+  { nome: "Iluminação", modelo: "iluminacao" },
+  { nome: "Pedra", modelo: "pedra" },
+  { nome: "Cuba", modelo: "cuba" },
+  { nome: "Insumo", modelo: "insumo" },
+  { nome: "Mão de obra", modelo: "maodeobra" },
+  { nome: "Outro", modelo: "outro" },
+];
+
+// Deduz o modelo 3D mais adequado a partir do nome da categoria.
+export function inferirModelo(nome = "") {
+  const n = String(nome).toLowerCase();
+  if (/chapa|mdf|mdp|compensad|madeira|lâmina|lamina/.test(n)) return "chapa";
+  if (/fita|borda/.test(n)) return "fita";
+  if (/ferrag|dobradi|corredi|puxador|parafus|suporte|trilho/.test(n)) return "ferragem";
+  if (/ilumin|led|luz|lâmpada|lampada|spot|fita led/.test(n)) return "iluminacao";
+  if (/pedra|quartzo|granito|mármore|marmore|porcelanato|silestone/.test(n)) return "pedra";
+  if (/cuba|pia|tanque|lavató|lavato/.test(n)) return "cuba";
+  if (/insumo|cola|adesivo|fixaç|fixac|abrasivo|verniz|tinta/.test(n)) return "insumo";
+  if (/mão|mao|obra|serviç|servic|instal|montagem/.test(n)) return "maodeobra";
+  return "outro";
+}

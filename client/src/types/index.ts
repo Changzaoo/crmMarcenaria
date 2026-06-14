@@ -55,6 +55,33 @@ export interface Negocio {
   proximo_follow_up?: string;
   criado_em?: string;
   fechado_em?: string;
+  /** vínculo com um projeto do Estúdio 3D (Orçamento 3D) */
+  projeto_3d_id?: string | null;
+  /** resumo JSON (valores + móveis) do Orçamento 3D, serializado */
+  dados_3d?: string | null;
+}
+
+/** Resumo do Orçamento 3D anexado a um negócio do funil. */
+export interface Dados3D {
+  projetoId?: string;
+  leadId?: string;
+  nome?: string;
+  email?: string;
+  whatsapp?: string;
+  cidade_estado?: string;
+  tipo_projeto?: string;
+  prazo?: string;
+  faixa_orcamento?: string;
+  descricao?: string;
+  status?: string;
+  arquiteto_solicitado?: boolean;
+  projectName?: string | null;
+  leadScore?: string | null;
+  estimativa?: { min: number; max: number; total: number; complexity: string; prazoDias: [number, number]; qtdMoveis: number } | null;
+  ambiente?: { largura?: number; comprimento?: number; peDireito?: number; tipo?: string; andares?: number } | null;
+  total?: number;
+  moveis?: { nome: string; categoria: string; material: string; preco: number; largura_cm: number; altura_cm: number; profundidade_cm: number; andar: number }[];
+  atualizado_em?: string | null;
 }
 
 export interface Interacao {
@@ -80,6 +107,15 @@ export interface Material {
   preco_custo: number;
   fornecedor?: string;
   ativo: number;
+}
+
+export interface Categoria {
+  id: number;
+  nome: string;
+  modelo: string;
+  descricao?: string;
+  ordem: number;
+  criado_em?: string;
 }
 
 export interface ItemMaterial {
@@ -293,7 +329,34 @@ export const SEGMENTOS = [
 ];
 
 export const ORIGENS = [
-  "site", "WhatsApp", "indicação", "Instagram", "arquiteto parceiro", "retorno de cliente",
+  "site", "Orçamento 3D", "WhatsApp", "indicação", "Instagram", "arquiteto parceiro", "retorno de cliente",
 ];
 
 export const MOTIVOS_PERDA = ["preço", "prazo", "concorrência", "adiado", "outro"];
+
+// Modelos 3D disponíveis para ilustrar uma categoria do catálogo.
+export const MODELOS_CATEGORIA: { valor: string; rotulo: string }[] = [
+  { valor: "chapa", rotulo: "Chapa / MDF" },
+  { valor: "fita", rotulo: "Fita de borda" },
+  { valor: "ferragem", rotulo: "Ferragem" },
+  { valor: "iluminacao", rotulo: "Iluminação" },
+  { valor: "pedra", rotulo: "Pedra / Quartzo" },
+  { valor: "cuba", rotulo: "Cuba / Pia" },
+  { valor: "insumo", rotulo: "Insumo" },
+  { valor: "maodeobra", rotulo: "Mão de obra" },
+  { valor: "outro", rotulo: "Genérico" },
+];
+
+// Espelha o inferirModelo do backend para uso em categorias derivadas de materiais.
+export function inferirModelo(nome = ""): string {
+  const n = nome.toLowerCase();
+  if (/chapa|mdf|mdp|compensad|madeira|lâmina|lamina/.test(n)) return "chapa";
+  if (/fita|borda/.test(n)) return "fita";
+  if (/ferrag|dobradi|corredi|puxador|parafus|suporte|trilho/.test(n)) return "ferragem";
+  if (/ilumin|led|luz|lâmpada|lampada|spot/.test(n)) return "iluminacao";
+  if (/pedra|quartzo|granito|mármore|marmore|porcelanato|silestone/.test(n)) return "pedra";
+  if (/cuba|pia|tanque|lavató|lavato/.test(n)) return "cuba";
+  if (/insumo|cola|adesivo|fixaç|fixac|abrasivo|verniz|tinta/.test(n)) return "insumo";
+  if (/mão|mao|obra|serviç|servic|instal|montagem/.test(n)) return "maodeobra";
+  return "outro";
+}

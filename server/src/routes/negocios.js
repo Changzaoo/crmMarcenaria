@@ -2,8 +2,21 @@ import { Router } from "express";
 import { db } from "../db/index.js";
 import { criarProjetoComEtapas } from "../lib/projetoFactory.js";
 import { calcularOrcamento } from "../lib/calc.js";
+import { sincronizarFunil3d } from "../storage/funil3dSync.js";
 
 const r = Router();
+
+// Importa os Orçamentos 3D (Estúdio 3D) para o funil como negócios.
+// Roda na rota autenticada para que o snapshot do Firebase persista.
+r.post("/sincronizar-3d", async (_req, res) => {
+  try {
+    const out = await sincronizarFunil3d();
+    res.json(out);
+  } catch (e) {
+    console.error("[negocios] sincronizar-3d ->", e?.stack || e);
+    res.status(500).json({ erro: e?.message || "Falha ao sincronizar Orçamentos 3D." });
+  }
+});
 
 // Calcula o preço final de um orçamento (para usar como valor do projeto).
 function valorDoOrcamento(orc) {
