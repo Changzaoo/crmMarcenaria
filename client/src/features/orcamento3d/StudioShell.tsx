@@ -6,6 +6,7 @@ import type { Project3DDoc, Role, SessionState } from "./types";
 import { CollaborationSession } from "./services/collaborationService";
 import { salvarProjeto, enviarParaAnalise, chamarArquiteto } from "./services/project3DService";
 import ThreeDScene from "./scene/ThreeDScene";
+import SceneErrorBoundary from "./scene/SceneErrorBoundary";
 import CameraModeSelector from "./ui/CameraModeSelector";
 import FurnitureLibrary from "./ui/FurnitureLibrary";
 import FurniturePropertiesPanel from "./ui/FurniturePropertiesPanel";
@@ -264,15 +265,17 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
         {/* Cena 3D */}
         <main className="absolute inset-0 lg:relative lg:flex-1 h-full lg:ml-0">
           <div className="absolute inset-0">
-            <Suspense fallback={<div className="h-full grid place-items-center text-muted text-sm">Carregando ambiente 3D…</div>}>
-              <ThreeDScene
-                peers={session?.peers ?? []}
-                selfPeerId={peerId}
-                role={role}
-                name={role === "arquiteto" ? "Especialista" : clienteNome}
-                onSelfMove={(x, z, ry) => collabRef.current?.updateSelf(x, z, ry)}
-              />
-            </Suspense>
+            <SceneErrorBoundary>
+              <Suspense fallback={<div className="h-full grid place-items-center text-muted text-sm">Carregando ambiente 3D…</div>}>
+                <ThreeDScene
+                  peers={session?.peers ?? []}
+                  selfPeerId={peerId}
+                  role={role}
+                  name={role === "arquiteto" ? "Especialista" : clienteNome}
+                  onSelfMove={(x, z, ry) => collabRef.current?.updateSelf(x, z, ry)}
+                />
+              </Suspense>
+            </SceneErrorBoundary>
           </div>
 
           {/* Controles de andar / paredes (estilo The Sims) */}
