@@ -227,9 +227,11 @@ export default function PlayerAndCamera({
           enableRotate={mode === "isometrica"}
           enablePan
           enableZoom
-          maxPolarAngle={mode === "topo" ? 0.01 : Math.PI / 2.1}
+          maxPolarAngle={mode === "topo" ? 0 : Math.PI / 2.1}
           minPolarAngle={mode === "topo" ? 0 : 0.2}
-          target={[0, floorY + 0.5, 0]}
+          minAzimuthAngle={mode === "topo" ? 0 : -Infinity}
+          maxAzimuthAngle={mode === "topo" ? 0 : Infinity}
+          target={[0, floorY + (mode === "topo" ? 0 : 0.5), 0]}
         />
       )}
 

@@ -5,6 +5,7 @@ export default function SessionPanel({
   state,
   role,
   clienteNome,
+  arquitetoNome,
   salvo,
   onSalvar,
   onResumo,
@@ -13,6 +14,7 @@ export default function SessionPanel({
   state: SessionState | null;
   role: Role;
   clienteNome: string;
+  arquitetoNome?: string;
   salvo: boolean;
   onSalvar: () => void;
   onResumo: () => void;
@@ -21,6 +23,13 @@ export default function SessionPanel({
   const arquitetoOnline = state?.arquitetoOnline ?? false;
   const clienteOnline = state?.clienteOnline ?? (role === "cliente");
   const colaborativa = arquitetoOnline && clienteOnline;
+
+  // Nome do arquiteto: o local (quando este usuário é o arquiteto) ou o nome do
+  // peer remoto com papel "arquiteto" — assim o cliente vê o nome real de quem entrou.
+  const nomeArquiteto =
+    arquitetoNome ||
+    state?.peers?.find((p) => p.role === "arquiteto" && p.nome)?.nome ||
+    (arquitetoOnline ? "Especialista" : "—");
 
   return (
     <div className="space-y-3">
@@ -36,7 +45,7 @@ export default function SessionPanel({
 
       <div className="space-y-1.5 text-sm">
         <Linha cor="champagne" online={clienteOnline} label="Cliente" nome={clienteNome} />
-        <Linha cor="sky" online={arquitetoOnline} label="Arquiteto" nome={arquitetoOnline ? "Especialista LINEAR" : "—"} />
+        <Linha cor="sky" online={arquitetoOnline} label="Arquiteto" nome={arquitetoOnline ? nomeArquiteto : "—"} />
       </div>
 
       <div className="text-[11px] text-muted">

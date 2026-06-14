@@ -1,6 +1,7 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeft, FileText, HelpCircle, Keyboard, Layers, PhoneCall, Save, Sofa, SlidersHorizontal } from "lucide-react";
 import { useUI } from "../../components/ui";
+import { useAuth } from "../../auth/AuthContext";
 import { StudioProvider, useStudio } from "./store";
 import type { Project3DDoc, Role, SessionState } from "./types";
 import { GuidedTour, toursDisabled, setToursDisabled } from "../../components/Tutorial";
@@ -44,6 +45,9 @@ export default function StudioShell(props: ShellProps) {
 
 function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellProps) {
   const { toast } = useUI();
+  const { user } = useAuth();
+  // Nome real do arquiteto logado (cai para o e-mail e, por fim, "Especialista").
+  const nomeArquiteto = (user?.displayName?.trim() || user?.email?.split("@")[0] || "Especialista").trim();
   const store = useStudio();
   const {
     doc,
@@ -123,7 +127,7 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
     const collab = new WsCollaborationSession({
       projetoId,
       role,
-      nome: role === "arquiteto" ? "Especialista LINEAR" : clienteNome,
+      nome: role === "arquiteto" ? nomeArquiteto : clienteNome,
       color: peerColor(role),
       onState: (state) => setSession(state),
       onRemoteDoc: (remote) => {
@@ -316,7 +320,7 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
                   peers={session?.peers ?? []}
                   selfPeerId={peerId}
                   role={role}
-                  name={role === "arquiteto" ? "Especialista" : clienteNome}
+                  name={role === "arquiteto" ? nomeArquiteto : clienteNome}
                   touch={isMobile}
                   onSelfMove={(x, z, ry) => collabRef.current?.updateSelf(x, z, ry)}
                   onMoving={(m) => collabRef.current?.setMoving(m)}
@@ -367,6 +371,7 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
               state={session}
               role={role}
               clienteNome={clienteNome}
+              arquitetoNome={role === "arquiteto" ? nomeArquiteto : undefined}
               salvo={salvo}
               onSalvar={() => void persistir(localDocRef.current)}
               onResumo={() => setMostrarResumo(true)}
