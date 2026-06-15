@@ -113,6 +113,55 @@ r.delete("/:id", (req, res) => {
   res.json({ ok: true });
 });
 
+// Mapeia o tipo de projeto informado pelo lead para um segmento do CRM.
+function inferirSegmento(tipo = "") {
+  const t = tipo.toLowerCase();
+  if (/loja|varejo|otica|óptica|boutique/.test(t)) return "loja";
+  if (/franquia/.test(t)) return "franquia";
+  if (/restaurante|bar|cafe|café|gastr/.test(t)) return "restaurante";
+  if (/clinic|clínic|consult|odonto|estetic/.test(t)) return "clínica";
+  if (/hotel|pousada|resort/.test(t)) return "hotel";
+  if (/escrit|corporat|office/.test(t)) return "escritório";
+  if (/quiosque/.test(t)) return "quiosque";
+  if (/showroom/.test(t)) return "showroom";
+  return "outro";
+}
+
+// Cria um cliente (empresa + contato principal) a partir dos dados que o lead
+// preencheu (nome, e-mail, WhatsApp, cidade, tipo de projeto) e vincula ao negócio.
+r.post("/:id/criar-cliente", (req, res) => {
+  const neg = db.prepare("SELECT * FROM negocios WHERE id = ?").get(req.params.id);
+  if (!neg) return res.status(404).json({ erro: "Negócio não encontrado." });
+  if (neg.empresa_id) return res.status(400).json({ erro: "Este negócio já está vinculado a um cliente." });
+
+  let d = {};
+  try { d = neg.dados_3d ? JSON.parse(neg.dados_3d) : {}; } catch { d = {}; }
+  const nome = String(d.nome || req.body?.nome || neg.titulo || "Cliente").trim().slice(0, 120) || "Cliente";
+  const cidade = String(d.cidade_estado || "").trim();
+  const observacoes = [
+    d.tipo_projeto && `Projeto: ${d.tipo_projeto}`,
+    d.prazo && `Prazo: ${d.prazo}`,
+    d.faixa_orcamento && `Faixa: ${d.faixa_orcamento}`,
+    neg.origem && `Origem: ${neg.origem}`,
+    d.descricao && `Mensagem: ${d.descricao}`,
+  ].filter(Boolean).join(" · ") || null;
+
+  const out = db.transaction(() => {
+    const empId = db.prepare(
+      `INSERT INTO empresas (razao_social, nome_fantasia, segmento, is_arquiteto, cidade, observacoes)
+       VALUES (?,?,?,?,?,?)`
+    ).run(nome, nome, d.segmento || inferirSegmento(d.tipo_projeto), 0, cidade, observacoes).lastInsertRowid;
+    const contId = db.prepare(
+      `INSERT INTO contatos (empresa_id, nome, cargo, telefone, email, principal)
+       VALUES (?,?,?,?,?,1)`
+    ).run(empId, nome, "Contato principal", d.whatsapp || null, d.email || null).lastInsertRowid;
+    db.prepare("UPDATE negocios SET empresa_id = ?, contato_id = ? WHERE id = ?").run(empId, contId, req.params.id);
+    return { empId, contId };
+  })();
+
+  res.json({ ok: true, empresa_id: out.empId, contato_id: out.contId });
+});
+
 // ----- Interações / follow-ups -----
 r.post("/:id/interacoes", (req, res) => {
   const b = req.body;

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
-import { FileText, Plus } from "lucide-react";
+import { FileText, Plus, UserPlus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { moeda, moedaCurta, data, vencido, whatsappLink, aplicarTemplate } from "../lib/format";
@@ -384,6 +384,17 @@ function NegocioPainel({ id, onClose }: { id: number; onClose: () => void }) {
     }
   };
 
+  // Cria um cliente (empresa + contato) a partir dos dados do lead e vincula ao negócio.
+  const adicionarCliente = async () => {
+    try {
+      await api.post(`/negocios/${neg.id}/criar-cliente`, {});
+      toast("Cliente criado e vinculado ao negócio.");
+      carregar();
+    } catch (e: unknown) {
+      toast(e instanceof Error ? e.message : "Não foi possível criar o cliente.", "err");
+    }
+  };
+
   return (
     <Modal open onClose={onClose} title={neg.titulo} wide>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -401,6 +412,12 @@ function NegocioPainel({ id, onClose }: { id: number; onClose: () => void }) {
             <Info label="Previsão" value={data(neg.data_prevista)} />
             <Info label="Responsável" value={neg.responsavel} />
           </div>
+
+          {!neg.empresa_id && (neg.dados_3d || neg.projeto_3d_id) && (
+            <button className="btn-ghost w-full text-sm" onClick={adicionarCliente}>
+              <UserPlus size={15} /> Adicionar cliente ao sistema
+            </button>
+          )}
 
           {(neg.projeto_3d_id || neg.dados_3d) && <Resumo3D neg={neg} onAddOrcamento={tem3D ? adicionarItens3D : undefined} />}
 
@@ -551,6 +568,8 @@ function Resumo3D({ neg, onAddOrcamento }: { neg: NegocioDetalhe; onAddOrcamento
       )}
 
       <div className="grid grid-cols-2 gap-2 text-xs">
+        <Info label="Cliente" value={d?.nome} />
+        <Info label="E-mail" value={d?.email} />
         <Info label="Tipo de projeto" value={d?.tipo_projeto} />
         <Info label="Cidade / Estado" value={d?.cidade_estado} />
         <Info label="Prazo desejado" value={d?.prazo} />
