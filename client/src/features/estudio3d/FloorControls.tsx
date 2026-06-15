@@ -97,6 +97,23 @@ export default function FloorControls() {
       >
         {WALL_LABEL[wallMode]}
       </button>
+
+      {/* Altura das paredes (pé-direito) — ajustável ao vivo */}
+      <div className="rounded-lg border border-champagne/15 px-2 py-1.5">
+        <div className="mb-1 flex items-center justify-between">
+          <span className="text-[10px] uppercase tracking-wide text-muted">Altura</span>
+          <span className="font-semibold text-champagne">{(env.height / 100).toFixed(2)}m</span>
+        </div>
+        <input
+          type="range"
+          min={220}
+          max={800}
+          step={10}
+          value={env.height}
+          onChange={(e) => actions.setWallHeight(Number(e.target.value))}
+          className="w-full accent-champagne"
+        />
+      </div>
       <button
         type="button"
         onClick={cycleVisibility}

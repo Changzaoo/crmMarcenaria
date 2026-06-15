@@ -251,7 +251,9 @@ function Room({
   const d = env.depth / 100;
   const h = env.height / 100;
   const floors = Math.max(1, env.floors);
-  const wallH = wallMode === "down" ? 0 : wallMode === "cut" ? Math.min(1.15, h) : h;
+  // "cut" = paredes baixas (estilo The Sims), porém mais altas que antes p/ dar
+  // mais presença ao ambiente sem perder a visão de dentro.
+  const wallH = wallMode === "down" ? 0 : wallMode === "cut" ? Math.min(1.7, h * 0.6) : h;
   const showWalls = wallH > 0;
   const wallMat = { color: env.wallColor, roughness: 0.95, metalness: 0, side: THREE.DoubleSide };
 

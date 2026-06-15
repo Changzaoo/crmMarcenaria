@@ -181,6 +181,15 @@ export const actions = {
     if (orc3dStore.getState().activeFloor > floorMax) orc3dStore.setState({ activeFloor: floorMax });
   },
 
+  /** Altura das paredes / pé-direito (cm), com limites de sanidade. */
+  setWallHeight(cm: number) {
+    const [lo, hi] = ENV_LIMITS.height;
+    const height = Math.round(Math.max(lo, Math.min(hi, cm)));
+    commitDoc((d) => {
+      d.environment = { ...d.environment, height };
+    }, false);
+  },
+
   enterEditor() {
     orc3dStore.setState({ phase: "editing" });
   },
