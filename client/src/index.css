@@ -9,10 +9,23 @@
   body {
     @apply bg-background text-text font-sans antialiased;
   }
-  ::-webkit-scrollbar { width: 10px; height: 10px; }
-  ::-webkit-scrollbar-track { background: #0d0b09; }
-  ::-webkit-scrollbar-thumb { background: #2a241e; border-radius: 8px; }
-  ::-webkit-scrollbar-thumb:hover { background: #3a3128; }
+
+  /* Scrollbar do tema (champagne) — refinada e consistente em todo o app. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #4a3d27 transparent;
+  }
+  ::-webkit-scrollbar { width: 9px; height: 9px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background-color: #4a3d27;
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background-color: #7a6334; }
+  ::-webkit-scrollbar-thumb:active { background-color: #d8b978; }
+  ::-webkit-scrollbar-corner { background: transparent; }
 }
 
 @layer components {
