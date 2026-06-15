@@ -113,6 +113,10 @@ export interface EnvironmentConfig {
   floorType: "porcelanato" | "madeira" | "cimento" | "claro" | "escuro";
   wallColor: string;
   style: EnvironmentStyle;
+  /** posição (metros) do centro da escada quando há andares — permite movê-la.
+      Indefinido = posição padrão (encostada na parede direita, ao fundo). */
+  stairsX?: number;
+  stairsZ?: number;
 }
 
 export interface ClientInfo {

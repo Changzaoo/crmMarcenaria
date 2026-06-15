@@ -329,6 +329,13 @@ export const actions = {
     pushHistory();
   },
 
+  /** Move a escada (centro em metros). Sem histórico — usado durante o arraste. */
+  setStairs(x: number, z: number) {
+    commitDoc((d) => {
+      d.environment = { ...d.environment, stairsX: x, stairsZ: z };
+    }, false);
+  },
+
   rotate(uidSel: string, deltaRad: number) {
     commitDoc((d) => {
       const f = d.furniture.find((x) => x.uid === uidSel);

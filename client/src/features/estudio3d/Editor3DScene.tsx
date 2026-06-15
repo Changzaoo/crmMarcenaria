@@ -8,6 +8,7 @@ import { SceneEnvironment } from "../../shared3d";
 import { fpInput } from "./fpInput";
 import {
   actions,
+  orc3dStore,
   useOrc3d,
 } from "./useOrcamento3DStore";
 import { publishCursor, usePeers } from "./presence";
@@ -61,22 +62,129 @@ function snapPosition(
 }
 
 /* ---------- escada simples (degraus) ---------- */
-function Stairs({ w, d, fromY, toY }: { w: number; d: number; fromY: number; toY: number }) {
-  const steps = Math.max(6, Math.round((toY - fromY) / 0.2));
-  const rise = (toY - fromY) / steps;
+const clampN = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+/** Pegada (footprint) da escada no plano XZ — centro, largura e profundidade.
+    Usa env.stairsX/Z quando definido; senão, posição padrão (parede direita,
+    ao fundo). Serve tanto para desenhar os degraus quanto para abrir o buraco
+    no piso de cima. */
+function stairFootprint(env: EnvironmentConfig) {
+  const w = env.width / 100;
+  const d = env.depth / 100;
+  const h = env.height / 100;
+  const steps = Math.max(6, Math.round(h / 0.2));
   const run = 0.28;
   const stepW = Math.min(1.1, w * 0.22);
-  // encostada na parede direita, subindo em direção ao fundo
-  const x = w / 2 - stepW / 2 - 0.1;
+  const fd = steps * run; // profundidade ocupada (m)
+  const defCx = w / 2 - stepW / 2 - 0.1;
+  const defCz = d / 2 - 0.2 - fd / 2;
+  const cx = clampN(env.stairsX ?? defCx, -w / 2 + stepW / 2, w / 2 - stepW / 2);
+  const cz = clampN(env.stairsZ ?? defCz, -d / 2 + fd / 2, d / 2 - fd / 2);
+  return { cx, cz, fw: stepW, fd, steps, run, stepW };
+}
+
+function Stairs({
+  env,
+  fromY,
+  toY,
+  selected,
+  onPointerDown,
+}: {
+  env: EnvironmentConfig;
+  fromY: number;
+  toY: number;
+  selected?: boolean;
+  onPointerDown?: (e: ThreeEvent<PointerEvent>) => void;
+}) {
+  const { cx, cz, fd, steps, stepW } = stairFootprint(env);
+  const rise = (toY - fromY) / steps;
+  const run = fd / steps;
+  // degraus sobem em direção ao fundo (−Z), a partir da borda frontal da pegada
+  const zFront = cz + fd / 2;
   return (
-    <group>
+    <group onPointerDown={onPointerDown}>
       {Array.from({ length: steps }).map((_, i) => (
-        <mesh key={i} position={[x, fromY + rise * (i + 0.5), d / 2 - 0.2 - run * (i + 0.5)]} castShadow receiveShadow>
+        <mesh key={i} position={[cx, fromY + rise * (i + 0.5), zFront - run * (i + 0.5)]} castShadow receiveShadow>
           <boxGeometry args={[stepW, rise, run]} />
-          <meshStandardMaterial color="#5a4636" roughness={0.7} />
+          <meshStandardMaterial color={selected ? "#7a5f48" : "#5a4636"} roughness={0.7} />
         </mesh>
       ))}
+      {/* patamar no topo, rente ao piso de cima, cobrindo a borda do buraco */}
+      <mesh position={[cx, toY - 0.02, cz - fd / 2 + run]} receiveShadow castShadow>
+        <boxGeometry args={[stepW, 0.04, run * 1.4]} />
+        <meshStandardMaterial color={selected ? "#7a5f48" : "#5a4636"} roughness={0.7} />
+      </mesh>
+      {/* corrimão lateral (latão) */}
+      {[-stepW / 2 - 0.02, stepW / 2 + 0.02].map((ox, k) => (
+        <mesh key={k} position={[cx + ox, fromY + (toY - fromY) / 2 + 0.5, cz]} rotation={[Math.atan2(toY - fromY, fd), 0, 0]}>
+          <boxGeometry args={[0.025, 0.025, Math.hypot(fd, toY - fromY)]} />
+          <meshStandardMaterial color="#caa86a" roughness={0.4} metalness={0.6} />
+        </mesh>
+      ))}
+      {selected && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[cx, fromY + 0.01, cz]}>
+          <planeGeometry args={[stepW + 0.1, fd + 0.1]} />
+          <meshBasicMaterial color="#D8B978" transparent opacity={0.18} />
+        </mesh>
+      )}
     </group>
+  );
+}
+
+/** Piso de um andar; quando `hole` é passado, abre uma abertura retangular
+    (vão da escada) usando uma Shape com furo no lugar de um plano cheio. */
+function FloorMesh({
+  w,
+  d,
+  baseY,
+  color,
+  active,
+  onMove,
+  onUp,
+  hole,
+}: {
+  w: number;
+  d: number;
+  baseY: number;
+  color: string;
+  active: boolean;
+  onMove: (e: ThreeEvent<PointerEvent>) => void;
+  onUp: () => void;
+  hole?: { cx: number; cz: number; fw: number; fd: number } | null;
+}) {
+  const geom = useMemo(() => {
+    if (!hole) return new THREE.PlaneGeometry(w, d);
+    const shape = new THREE.Shape();
+    shape.moveTo(-w / 2, -d / 2);
+    shape.lineTo(w / 2, -d / 2);
+    shape.lineTo(w / 2, d / 2);
+    shape.lineTo(-w / 2, d / 2);
+    shape.closePath();
+    // coords locais da Shape: lx = x, ly = -z (rotação -90° em X)
+    const hx = hole.cx;
+    const hy = -hole.cz;
+    const hw = hole.fw / 2 + 0.02;
+    const hd = hole.fd / 2 + 0.02;
+    const path = new THREE.Path();
+    path.moveTo(hx - hw, hy - hd);
+    path.lineTo(hx + hw, hy - hd);
+    path.lineTo(hx + hw, hy + hd);
+    path.lineTo(hx - hw, hy + hd);
+    path.closePath();
+    shape.holes.push(path);
+    return new THREE.ShapeGeometry(shape);
+  }, [w, d, hole?.cx, hole?.cz, hole?.fw, hole?.fd]);
+  return (
+    <mesh
+      geometry={geom}
+      rotation={[-Math.PI / 2, 0, 0]}
+      position={[0, baseY, 0]}
+      receiveShadow
+      onPointerMove={active ? onMove : undefined}
+      onPointerUp={active ? onUp : undefined}
+    >
+      <meshStandardMaterial color={color} roughness={0.85} side={THREE.DoubleSide} />
+    </mesh>
   );
 }
 
@@ -124,6 +232,9 @@ function Room({
   gridVisible,
   onFloorMove,
   onFloorUp,
+  stairHole,
+  onStairsDown,
+  stairsSelected,
 }: {
   env: EnvironmentConfig;
   activeFloor: number;
@@ -132,6 +243,9 @@ function Room({
   gridVisible: boolean;
   onFloorMove: (e: ThreeEvent<PointerEvent>) => void;
   onFloorUp: () => void;
+  stairHole: { cx: number; cz: number; fw: number; fd: number } | null;
+  onStairsDown?: (e: ThreeEvent<PointerEvent>) => void;
+  stairsSelected?: boolean;
 }) {
   const w = env.width / 100;
   const d = env.depth / 100;
@@ -147,24 +261,22 @@ function Room({
         if (!floorVisible(floor, activeFloor, floorVisibility)) return null;
         const baseY = floor * h;
         const active = floor === activeFloor;
+        // o vão da escada só é aberto nos pisos acima do térreo (destino da subida)
+        const hole = floor > 0 ? stairHole : null;
         return (
           <group key={floor}>
-            <mesh
-              rotation={[-Math.PI / 2, 0, 0]}
-              position={[0, baseY, 0]}
-              receiveShadow
-              onPointerMove={active ? onFloorMove : undefined}
-              onPointerUp={active ? onFloorUp : undefined}
-            >
-              <planeGeometry args={[w, d]} />
-              <meshStandardMaterial
-                color={floor === 0 ? FLOOR_COLORS[env.floorType] : "#1f1b16"}
-                roughness={0.85}
-                side={THREE.DoubleSide}
-              />
-            </mesh>
+            <FloorMesh
+              w={w}
+              d={d}
+              baseY={baseY}
+              color={floor === 0 ? FLOOR_COLORS[env.floorType] : "#1f1b16"}
+              active={active}
+              onMove={onFloorMove}
+              onUp={onFloorUp}
+              hole={hole}
+            />
 
-            {floor > 0 && (
+            {floor > 0 && !hole && (
               <mesh position={[0, baseY - 0.04, 0]} receiveShadow castShadow>
                 <boxGeometry args={[w, 0.08, d]} />
                 <meshStandardMaterial color="#1b1712" roughness={0.85} />
@@ -222,7 +334,14 @@ function Room({
       {env.hasStairs &&
         Array.from({ length: Math.max(0, floors - 1) }).map((_, floor) =>
           floorVisible(floor, activeFloor, floorVisibility) ? (
-            <Stairs key={floor} w={w} d={d} fromY={floor * h} toY={(floor + 1) * h} />
+            <Stairs
+              key={floor}
+              env={env}
+              fromY={floor * h}
+              toY={(floor + 1) * h}
+              selected={stairsSelected}
+              onPointerDown={onStairsDown}
+            />
           ) : null
         )}
     </group>
@@ -473,16 +592,78 @@ function SceneContents({ mobile }: { mobile: boolean }) {
   const floorVisibility = useOrc3d((s) => s.floorVisibility);
   const role = useOrc3d((s) => s.role);
   const clientName = useOrc3d((s) => s.doc.client.name);
+  const architectName = useOrc3d((s) => s.architectName);
   const snap = useOrc3d((s) => s.snap);
   const gridVisible = useOrc3d((s) => s.gridVisible);
   const cursorMode = useOrc3d((s) => s.cursorMode);
 
   const orbitRef = useRef<any>(null);
   const [draggingUid, setDraggingUid] = useState<string | null>(null);
+  const [stairsDragging, setStairsDragging] = useState(false);
+  const [stairsSelected, setStairsSelected] = useState(false);
   const dragBaseY = useRef(0);
   const floorHeight = env.height / 100;
   const activeFloorY = activeFloor * floorHeight;
   const walkMode = viewMode === "primeira" || viewMode === "terceira";
+  const stairHole = env.hasStairs ? (() => { const f = stairFootprint(env); return { cx: f.cx, cz: f.cz, fw: f.fw, fd: f.fd }; })() : null;
+
+  // Arraste em 1ª/3ª pessoa: o ponteiro raramente cai sobre o mesh do chão
+  // (câmera baixa), então o `onFloorMove` não dispara. Aqui raycastamos um
+  // plano horizontal matemático na altura da base do móvel — funciona em
+  // qualquer ângulo de câmera, com o ponteiro liberado (modo cursor).
+  const { camera, gl } = useThree();
+  const dragPlane = useRef(new THREE.Plane(new THREE.Vector3(0, 1, 0), 0));
+  const ndc = useRef(new THREE.Vector2());
+  const dragRay = useRef(new THREE.Raycaster());
+  const hitPt = useRef(new THREE.Vector3());
+  useEffect(() => {
+    if (!draggingUid || !walkMode) return;
+    const dom = gl.domElement;
+    const onMove = (ev: PointerEvent) => {
+      const lista = orc3dStore.getState().doc.furniture;
+      const f = lista.find((x) => x.uid === draggingUid);
+      if (!f) return;
+      const rect = dom.getBoundingClientRect();
+      ndc.current.set(
+        ((ev.clientX - rect.left) / rect.width) * 2 - 1,
+        -((ev.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      dragRay.current.setFromCamera(ndc.current, camera);
+      dragPlane.current.set(new THREE.Vector3(0, 1, 0), -(activeFloorY + dragBaseY.current));
+      if (!dragRay.current.ray.intersectPlane(dragPlane.current, hitPt.current)) return;
+      const others = lista.filter((o) => o.uid !== draggingUid && (o.floor ?? 0) === (f.floor ?? 0));
+      const [sx, sz] = snapPosition(hitPt.current.x, hitPt.current.z, f, env, others, snap);
+      actions.moveTo(draggingUid, [sx, dragBaseY.current, sz]);
+    };
+    dom.addEventListener("pointermove", onMove);
+    return () => dom.removeEventListener("pointermove", onMove);
+  }, [draggingUid, walkMode, camera, gl, env, snap, activeFloorY]);
+
+  // Arraste da ESCADA — raycast no plano do andar ativo (funciona em todos os
+  // modos). Move o centro da pegada, mantendo-a dentro das paredes.
+  useEffect(() => {
+    if (!stairsDragging) return;
+    const dom = gl.domElement;
+    const onMove = (ev: PointerEvent) => {
+      const e2 = orc3dStore.getState().doc.environment;
+      const w = e2.width / 100;
+      const d = e2.depth / 100;
+      const fp = stairFootprint(e2);
+      const rect = dom.getBoundingClientRect();
+      ndc.current.set(
+        ((ev.clientX - rect.left) / rect.width) * 2 - 1,
+        -((ev.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      dragRay.current.setFromCamera(ndc.current, camera);
+      dragPlane.current.set(new THREE.Vector3(0, 1, 0), -activeFloorY);
+      if (!dragRay.current.ray.intersectPlane(dragPlane.current, hitPt.current)) return;
+      const cx = clampN(hitPt.current.x, -w / 2 + fp.fw / 2, w / 2 - fp.fw / 2);
+      const cz = clampN(hitPt.current.z, -d / 2 + fp.fd / 2, d / 2 - fp.fd / 2);
+      actions.setStairs(cx, cz);
+    };
+    dom.addEventListener("pointermove", onMove);
+    return () => dom.removeEventListener("pointermove", onMove);
+  }, [stairsDragging, camera, gl, activeFloorY]);
 
   // móveis do andar ativo viram obstáculos de colisão para o avatar
   const obstacles = useMemo<Obstacle[]>(
@@ -506,20 +687,35 @@ function SceneContents({ mobile }: { mobile: boolean }) {
         setDraggingUid(null);
         if (orbitRef.current) orbitRef.current.enabled = true;
       }
+      if (stairsDragging) {
+        setStairsDragging(false);
+        if (orbitRef.current) orbitRef.current.enabled = true;
+      }
     };
     window.addEventListener("pointerup", up);
     return () => window.removeEventListener("pointerup", up);
-  }, [draggingUid]);
+  }, [draggingUid, stairsDragging]);
 
   const onFurnitureDown = (f: PlacedFurniture) => (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
     actions.select(f.uid);
+    setStairsSelected(false);
     if (f.locked || (f.floor ?? 0) !== activeFloor) return;
     // em 1ª/3ª pessoa só arrasta com o modo cursor ligado (ponteiro liberado)
     if (walkMode && !cursorMode) return;
     dragBaseY.current = f.position[1];
     actions.beginDrag();
     setDraggingUid(f.uid);
+    if (orbitRef.current) orbitRef.current.enabled = false;
+  };
+
+  const onStairsDown = (e: ThreeEvent<PointerEvent>) => {
+    e.stopPropagation();
+    actions.select(null);
+    setStairsSelected(true);
+    // em 1ª/3ª pessoa só arrasta com o ponteiro liberado (modo cursor)
+    if (walkMode && !cursorMode) return;
+    setStairsDragging(true);
     if (orbitRef.current) orbitRef.current.enabled = false;
   };
 
@@ -548,7 +744,7 @@ function SceneContents({ mobile }: { mobile: boolean }) {
     <>
       {/* Ambiente de render ÚNICO (fonte: shared3d) — idêntico no site e no CRM */}
       <SceneEnvironment maxDim={Math.max(env.width, env.depth) / 100} mobile={mobile} />
-      <CameraRig mode={viewMode} env={env} mobile={mobile} activeFloor={activeFloor} role={role} name={clientName || "Cliente"} obstacles={obstacles} />
+      <CameraRig mode={viewMode} env={env} mobile={mobile} activeFloor={activeFloor} role={role} name={role === "arquiteto" ? (architectName || "Arquiteto") : (clientName || "Cliente")} obstacles={obstacles} />
       <Capturer />
 
       <Room
@@ -559,6 +755,9 @@ function SceneContents({ mobile }: { mobile: boolean }) {
         gridVisible={gridVisible}
         onFloorMove={onFloorMove}
         onFloorUp={onFloorUp}
+        stairHole={stairHole}
+        onStairsDown={onStairsDown}
+        stairsSelected={stairsSelected}
       />
       <PresenceAvatars
         floorHeight={floorHeight}

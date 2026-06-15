@@ -27,6 +27,7 @@ import {
   actions,
   buildProject3D,
   closeStudio,
+  orc3dStore,
   useOrc3d,
 } from "./useOrcamento3DStore";
 import { create3DAttendance, initCrmSync, notifyAvailableArchitects } from "./crmBridge";
@@ -93,7 +94,11 @@ export default function Orcamento3DApp() {
       else if (e.key === "2") actions.setViewMode("terceira");
       else if (e.key === "3") actions.setViewMode("isometrico");
       else if (e.key === "4") actions.setViewMode("topo");
-      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+      else if (e.key === "r" || e.key === "R") {
+        // Gira o móvel selecionado ±15° (Shift inverte) — funciona em qualquer modo.
+        const sel = orc3dStore.getState().selectedUid;
+        if (sel) actions.rotate(sel, e.shiftKey ? -Math.PI / 12 : Math.PI / 12);
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
         e.shiftKey ? actions.redo() : actions.undo();
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {

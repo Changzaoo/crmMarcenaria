@@ -32,13 +32,24 @@ function mat(color: string, extra: THREE.MeshStandardMaterialParameters = {}) {
 
 function paint(role: AvatarRole, name: string): THREE.MeshStandardMaterial {
   const n = (name || "").toLowerCase();
-  if (n.includes("eye")) return mat("#f3f1ea", { roughness: 0.25 });
+  // A ORDEM IMPORTA: "eyebrow"/"eyelash" contêm "eye" — precisam vir ANTES da
+  // regra de olho, senão a sobrancelha/cílio fica com a cor branca dos olhos.
+  if (n.includes("eyebrow") || n.includes("brow") || n.includes("lash")) return mat("#2a2018", { roughness: 0.9 });
+  if (n.includes("pupil") || n.includes("iris")) return mat("#3a2a1e", { roughness: 0.3 });
   if (n.includes("teeth")) return mat("#f1ede2", { roughness: 0.4 });
-  if (n.includes("mouth") || n.includes("lip")) return mat("#8a4040");
+  if (n.includes("tongue") || n.includes("gum")) return mat("#b5605c", { roughness: 0.5 });
+  if (n.includes("mouth") || n.includes("lip")) return mat("#9c4b46");
+  if (n.includes("eye")) return mat("#f3f1ea", { roughness: 0.25 });
   if (n.includes("hair")) return mat("#241c16", { roughness: 0.95 });
   if (n.includes("shoe")) return mat("#1a1611", { roughness: 0.5, metalness: 0.1 });
   if (n.includes("tshirt") || n.includes("shirt")) return mat(role === "arquiteto" ? "#2b3d4f" : "#c69a52");
   if (n.includes("pant")) return mat(role === "arquiteto" ? "#243039" : "#3a4654");
+  // Regiões de pele explícitas — evita que rosto/mãos/pernas caiam nas cores
+  // genéricas (blue/red/yellow) por engano.
+  if (n.includes("skin") || n.includes("head") || n.includes("face") || n.includes("nose") ||
+      n.includes("hand") || n.includes("leg") || n.includes("arm") || n.includes("body")) {
+    return mat(SKIN, { roughness: 0.62 });
+  }
   if (n.includes("blue")) return mat("#3b5b8c");
   if (n.includes("red")) return mat("#b5483f");
   if (n.includes("yellow")) return mat("#d8b24a");
