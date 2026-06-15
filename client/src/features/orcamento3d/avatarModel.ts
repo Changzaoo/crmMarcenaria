@@ -163,6 +163,7 @@ async function build(role: AvatarRole): Promise<RawModel & { rigged: boolean }> 
       { suffix: "idle", name: "idle", stripRot: false },
       { suffix: "left", name: "turnLeft", stripRot: true },
       { suffix: "right", name: "turnRight", stripRot: true },
+      { suffix: "back", name: "walkBack", stripRot: false },
     ];
     for (const ex of extras) {
       const url = `/models/${role}-${ex.suffix}.fbx`;
@@ -195,17 +196,19 @@ export interface AvatarInstance {
   mixer: THREE.AnimationMixer | null;
   idle: THREE.AnimationAction | null;
   walk: THREE.AnimationAction | null;
+  walkBack: THREE.AnimationAction | null;
   turnLeft: THREE.AnimationAction | null;
   turnRight: THREE.AnimationAction | null;
 }
 
 function pickClips(animations: THREE.AnimationClip[]) {
   const find = (re: RegExp) => animations.find((a) => re.test(a.name));
+  const walkBack = find(/walkback|backward|back|tr[aá]s/i) || null;
   const idle = find(/idle|parad|stand|breath|respir/i) || animations[0] || null;
-  const walk = find(/^walk$|walking|run|andar|caminh/i) || animations[0] || null;
-  const turnLeft = find(/turnleft|left/i) || null;
-  const turnRight = find(/turnright|right/i) || null;
-  return { idle, walk, turnLeft, turnRight };
+  const walk = find(/^walk$|walking|caminh/i) || animations[0] || null;
+  const turnLeft = find(/turnleft/i) || null;
+  const turnRight = find(/turnright/i) || null;
+  return { idle, walk, walkBack, turnLeft, turnRight };
 }
 
 export async function getAvatarModel(role: AvatarRole): Promise<AvatarInstance> {
@@ -221,11 +224,19 @@ export async function getAvatarModel(role: AvatarRole): Promise<AvatarInstance> 
   }
 
   if (!base.rigged || base.animations.length === 0) {
-    return { object, mixer: null, idle: null, walk: null, turnLeft: null, turnRight: null };
+    return { object, mixer: null, idle: null, walk: null, walkBack: null, turnLeft: null, turnRight: null };
   }
 
   const mixer = new THREE.AnimationMixer(object);
-  const { idle, walk, turnLeft, turnRight } = pickClips(base.animations);
+  const { idle, walk, walkBack, turnLeft, turnRight } = pickClips(base.animations);
   const act = (c: THREE.AnimationClip | null) => (c ? mixer.clipAction(c) : null);
-  return { object, mixer, idle: act(idle), walk: act(walk), turnLeft: act(turnLeft), turnRight: act(turnRight) };
+  return {
+    object,
+    mixer,
+    idle: act(idle),
+    walk: act(walk),
+    walkBack: act(walkBack),
+    turnLeft: act(turnLeft),
+    turnRight: act(turnRight),
+  };
 }

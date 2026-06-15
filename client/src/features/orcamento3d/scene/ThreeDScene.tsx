@@ -19,15 +19,22 @@ interface Props {
 }
 
 export default function ThreeDScene({ peers, selfPeerId, role, name, touch, onSelfMove, onMoving }: Props) {
-  const { doc, cameraMode, selectedUid, select, updateFurniture, readOnly, activeFloor, wallMode, isFloorVisible } = useStudio();
+  const { doc, cameraMode, cursorMode, selectedUid, select, updateFurniture, readOnly, activeFloor, wallMode, isFloorVisible } = useStudio();
   const [dragging, setDragging] = useState(false);
   const [, setMoving] = useState(false);
 
   const env = doc.environment;
   const H = Math.max(2, env.peDireito);
   const bounds = { L: Math.max(1, env.largura), C: Math.max(1, env.comprimento) };
-  const draggable = !readOnly && (cameraMode === "isometrica" || cameraMode === "topo");
+  const walk = cameraMode === "primeira" || cameraMode === "terceira";
+  // arrasta nos modos de planta; em 1ª/3ª pessoa só com o modo cursor ligado
+  const draggable = !readOnly && (cameraMode === "isometrica" || cameraMode === "topo" || (walk && cursorMode));
   const floorY = activeFloor * H;
+
+  // móveis do andar ativo viram obstáculos de colisão para o avatar
+  const obstacles = doc.furniture
+    .filter((f) => (f.floor ?? 0) === activeFloor)
+    .map((f) => ({ x: f.x, z: f.z, hw: f.width / 2, hd: f.depth / 2 }));
 
   return (
     <Canvas shadows dpr={[1, 1.8]} gl={{ antialias: true }} onPointerMissed={() => select(null)}>
@@ -74,6 +81,8 @@ export default function ThreeDScene({ peers, selfPeerId, role, name, touch, onSe
         floorY={floorY}
         orbitEnabled={!dragging}
         touch={touch}
+        cursorMode={cursorMode}
+        obstacles={obstacles}
         onSelfMove={onSelfMove}
         onMovingChange={(m) => { setMoving(m); onMoving?.(m); }}
       />

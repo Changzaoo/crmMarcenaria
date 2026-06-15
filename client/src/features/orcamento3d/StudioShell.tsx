@@ -1,5 +1,5 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, FileText, HelpCircle, Keyboard, Layers, MessageSquare, PhoneCall, Save, Sofa, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, FileText, HelpCircle, Keyboard, Layers, MessageSquare, MousePointer, PhoneCall, Save, Sofa, SlidersHorizontal } from "lucide-react";
 import { useUI } from "../../components/ui";
 import { useAuth } from "../../auth/AuthContext";
 import { StudioProvider, useStudio } from "./store";
@@ -323,6 +323,16 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
             </span>
           )}
         </button>
+
+        {(store.cameraMode === "primeira" || store.cameraMode === "terceira") && !readOnly && (
+          <button
+            onClick={store.toggleCursorMode}
+            className={`btn-ghost px-2.5 py-2 text-sm ${store.cursorMode ? "text-champagne" : ""}`}
+            title="Liberar o ponteiro para adicionar e arrastar móveis em 1ª/3ª pessoa"
+          >
+            <MousePointer size={15} />
+          </button>
+        )}
 
         <button data-tour="studio-save" onClick={() => void persistir(localDocRef.current)} className="btn-ghost px-3 py-2 text-sm" title="Salvar">
           <Save size={15} /> <span className="hidden lg:inline">{salvo ? "Salvo" : "Salvar"}</span>

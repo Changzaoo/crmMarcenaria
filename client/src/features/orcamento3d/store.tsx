@@ -22,6 +22,10 @@ interface StudioContextValue {
   setFloorVisibility: (v: FloorVisibility) => void;
   isFloorVisible: (floor: number) => boolean;
   setCameraMode: (m: CameraMode) => void;
+  /** modo cursor: libera o ponteiro p/ adicionar/mover móveis em 1ª/3ª pessoa. */
+  cursorMode: boolean;
+  setCursorMode: (v: boolean) => void;
+  toggleCursorMode: () => void;
   select: (uid: string | null) => void;
   setEnvironment: (env: EnvironmentConfig) => void;
   setProjectName: (nome: string) => void;
@@ -59,6 +63,8 @@ export function StudioProvider({
 }) {
   const [doc, setDoc] = useState<Project3DDoc>(initialDoc ?? emptyDoc());
   const [cameraMode, setCameraMode] = useState<CameraMode>("isometrica");
+  const [cursorMode, setCursorMode] = useState(false);
+  const toggleCursorMode = useCallback(() => setCursorMode((v) => !v), []);
   const [selectedUid, setSelectedUid] = useState<string | null>(null);
   const [activeFloor, setActiveFloorState] = useState(0);
   const [wallMode, setWallMode] = useState<WallMode>("cut");
@@ -226,6 +232,9 @@ export function StudioProvider({
     setFloorVisibility,
     isFloorVisible,
     setCameraMode,
+    cursorMode,
+    setCursorMode,
+    toggleCursorMode,
     select: setSelectedUid,
     setEnvironment,
     setProjectName,

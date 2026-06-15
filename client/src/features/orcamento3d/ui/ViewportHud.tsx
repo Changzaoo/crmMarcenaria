@@ -7,7 +7,7 @@ import { useStudio } from "../store";
    - aviso explicando por que o cursor do mouse sumiu (pointer lock) na 1ª
      pessoa, com a dica de pressionar ESC para liberá-lo. */
 export default function ViewportHud({ touch = false }: { touch?: boolean }) {
-  const { cameraMode } = useStudio();
+  const { cameraMode, cursorMode } = useStudio();
   const [locked, setLocked] = useState(false);
 
   useEffect(() => {
@@ -17,11 +17,21 @@ export default function ViewportHud({ touch = false }: { touch?: boolean }) {
     return () => document.removeEventListener("pointerlockchange", sync);
   }, []);
 
-  const showCrosshair = cameraMode === "primeira" || cameraMode === "terceira";
-  const firstPerson = cameraMode === "primeira";
+  const walk = cameraMode === "primeira" || cameraMode === "terceira";
+  const showCrosshair = walk && !cursorMode;
+  const firstPerson = cameraMode === "primeira" && !cursorMode;
 
   return (
     <>
+      {/* modo cursor ativo: ponteiro liberado p/ editar móveis */}
+      {walk && cursorMode && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-24 z-[15] flex justify-center px-4">
+          <div className="flex items-center gap-2 rounded-full border border-champagne/40 bg-black/70 px-4 py-2 text-xs text-champagne backdrop-blur-md">
+            <span>🖱️ Ponteiro liberado — clique e arraste os móveis. Toque no cursor para voltar a navegar.</span>
+          </div>
+        </div>
+      )}
+
       {showCrosshair && (
         <div className="pointer-events-none absolute inset-0 z-[15] flex items-center justify-center">
           <div className="relative flex items-center justify-center">

@@ -22,6 +22,15 @@ function useKeyboard() {
   return keys;
 }
 
+export type Obstacle = { x: number; z: number; hw: number; hd: number };
+const AVATAR_R = 0.28;
+function hitsObstacle(x: number, z: number, obs: Obstacle[]): boolean {
+  for (const o of obs) {
+    if (Math.abs(x - o.x) < o.hw + AVATAR_R && Math.abs(z - o.z) < o.hd + AVATAR_R) return true;
+  }
+  return false;
+}
+
 interface Props {
   mode: CameraMode;
   role: Role;
@@ -30,6 +39,8 @@ interface Props {
   floorY: number; // altura da base do andar ativo
   orbitEnabled: boolean;
   touch?: boolean; // dispositivo de toque: usa joysticks virtuais p/ andar/olhar
+  cursorMode?: boolean; // ponteiro liberado: desliga o PointerLock na 1ª pessoa
+  obstacles?: Obstacle[]; // móveis do andar ativo para colisão
   onSelfMove: (x: number, z: number, ry: number) => void;
   onMovingChange: (moving: boolean) => void;
 }
@@ -42,6 +53,8 @@ export default function PlayerAndCamera({
   floorY,
   orbitEnabled,
   touch = false,
+  cursorMode = false,
+  obstacles = [],
   onSelfMove,
   onMovingChange,
 }: Props) {
@@ -139,8 +152,13 @@ export default function PlayerAndCamera({
         // A/D giram, W/S andam na direção
         pos.current.ry -= side * turn;
         if (Math.abs(fwd) > 0.02) {
-          pos.current.x += Math.sin(pos.current.ry) * fwd * speed;
-          pos.current.z += Math.cos(pos.current.ry) * fwd * speed;
+          const m = 0.3;
+          const dx = Math.sin(pos.current.ry) * fwd * speed;
+          const dz = Math.cos(pos.current.ry) * fwd * speed;
+          const nx = Math.max(-bounds.L / 2 + m, Math.min(bounds.L / 2 - m, pos.current.x + dx));
+          if (!hitsObstacle(nx, pos.current.z, obstacles)) pos.current.x = nx;
+          const nz = Math.max(-bounds.C / 2 + m, Math.min(bounds.C / 2 - m, pos.current.z + dz));
+          if (!hitsObstacle(pos.current.x, nz, obstacles)) pos.current.z = nz;
           moving = true;
         }
       } else {
@@ -158,8 +176,13 @@ export default function PlayerAndCamera({
           const fZ = -Math.cos(yaw);
           const rX = Math.cos(yaw);
           const rZ = -Math.sin(yaw);
-          pos.current.x += (fX * fwd + rX * side) * speed;
-          pos.current.z += (fZ * fwd + rZ * side) * speed;
+          const m = 0.3;
+          const dx = (fX * fwd + rX * side) * speed;
+          const dz = (fZ * fwd + rZ * side) * speed;
+          const nx = Math.max(-bounds.L / 2 + m, Math.min(bounds.L / 2 - m, pos.current.x + dx));
+          if (!hitsObstacle(nx, pos.current.z, obstacles)) pos.current.x = nx;
+          const nz = Math.max(-bounds.C / 2 + m, Math.min(bounds.C / 2 - m, pos.current.z + dz));
+          if (!hitsObstacle(pos.current.x, nz, obstacles)) pos.current.z = nz;
           pos.current.ry = yaw;
           moving = true;
         }
@@ -218,7 +241,7 @@ export default function PlayerAndCamera({
       )}
 
       {/* Controles */}
-      {mode === "primeira" && !touch && <PointerLockControls />}
+      {mode === "primeira" && !touch && !cursorMode && <PointerLockControls />}
       {(mode === "isometrica" || mode === "topo") && (
         <OrbitControls
           ref={controlsRef}
