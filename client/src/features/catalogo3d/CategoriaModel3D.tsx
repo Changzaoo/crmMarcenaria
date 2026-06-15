@@ -1,6 +1,7 @@
-import { Suspense, useRef, type ReactNode } from "react";
+import { Component, Suspense, useMemo, useRef, type ReactNode } from "react";
 import { Canvas, useFrame } from "@react-three/fiber";
-import { ContactShadows, Edges } from "@react-three/drei";
+import { ContactShadows, Edges, useGLTF } from "@react-three/drei";
+import { Box3, Vector3 } from "three";
 import type { Group } from "three";
 
 // Paleta consistente com o restante do estúdio 3D.
@@ -595,8 +596,63 @@ export function inferItemModel(nome = "", categoria = ""): string {
   return "";
 }
 
+// Modelos 3D reais (GLB) baixados, por chave de modelo. Quando existe um arquivo
+// para a chave, ele é renderizado no lugar da geometria procedural. Veja os
+// créditos em /models/catalogo/CREDITS.md.
+export const MODEL_FILES: Record<string, string> = {
+  cuba: "/models/catalogo/cuba.glb",
+  iluminacao: "/models/catalogo/iluminacao.glb",
+};
+Object.values(MODEL_FILES).forEach((u) => useGLTF.preload(u));
+
+// Renderiza um GLB carregado, escalado e centralizado para caber no enquadramento.
+function GlbModel({ url }: { url: string }) {
+  const { scene } = useGLTF(url);
+  const obj = useMemo(() => {
+    const clone = scene.clone(true);
+    const box = new Box3().setFromObject(clone);
+    const size = new Vector3();
+    const center = new Vector3();
+    box.getSize(size);
+    box.getCenter(center);
+    const maxDim = Math.max(size.x, size.y, size.z) || 1;
+    const scale = 1.7 / maxDim;
+    clone.scale.setScalar(scale);
+    clone.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
+    clone.traverse((o) => {
+      const m = o as { isMesh?: boolean; castShadow?: boolean; receiveShadow?: boolean };
+      if (m.isMesh) {
+        m.castShadow = true;
+        m.receiveShadow = true;
+      }
+    });
+    return clone;
+  }, [scene]);
+  return <primitive object={obj} />;
+}
+
+// Se um GLB falhar (download/parse), cai para a geometria procedural sem quebrar.
+class ModelBoundary extends Component<{ fallback: ReactNode; children: ReactNode }, { erro: boolean }> {
+  state = { erro: false };
+  static getDerivedStateFromError() {
+    return { erro: true };
+  }
+  render() {
+    return this.state.erro ? this.props.fallback : this.props.children;
+  }
+}
+
 function ModelByKey({ modelo }: { modelo?: string }) {
-  const Comp = MODELOS[modelo || "outro"] || OutroModel;
+  const key = modelo || "outro";
+  const Comp = MODELOS[key] || OutroModel;
+  const file = MODEL_FILES[key];
+  if (file) {
+    return (
+      <ModelBoundary fallback={<Comp />}>
+        <GlbModel url={file} />
+      </ModelBoundary>
+    );
+  }
   return <Comp />;
 }
 
