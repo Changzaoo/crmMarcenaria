@@ -3,7 +3,7 @@ import { api } from "../lib/api";
 import { moeda } from "../lib/format";
 import { Material, Categoria, MODELOS_CATEGORIA, inferirModelo } from "../types";
 import { PageHeader, Card, EmptyState, Modal, Field, Input, Select, Badge, useUI, Spinner } from "../components/ui";
-import CategoriaModel3D from "../features/catalogo3d/CategoriaModel3D";
+import CategoriaModel3D, { inferItemModel } from "../features/catalogo3d/CategoriaModel3D";
 
 const vazio: Partial<Material> = { nome: "", categoria: "Chapa", unidade: "un", preco_custo: 0, fornecedor: "", ativo: 1 };
 const VIEW_KEY = "catalogo:view";
@@ -114,52 +114,20 @@ export default function Catalogo() {
           action={<button className="btn-primary" onClick={() => setModal({ ...vazio })}>Cadastrar primeiro material</button>} />
       ) : vista === "cards" ? (
         <div className="grid gap-5 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
-          {catsParaCards.map((cat) => {
-            const cObj = categorias.find((c) => c.nome === cat);
-            const mats = filtrados.filter((m) => m.categoria === cat);
-            return (
-              <Card key={cat} className="!p-0 overflow-hidden flex flex-col">
-                <div className="relative h-44 bg-gradient-to-b from-black/10 to-black/40">
-                  <CategoriaModel3D modelo={modeloDe(cat)} className="absolute inset-0" />
-                  <div className="absolute top-2 left-2"><Badge tone="wood">{cat}</Badge></div>
-                  <div className="absolute top-2 right-2 flex gap-1">
-                    {cObj && (
-                      <>
-                        <button title="Editar categoria" className="w-7 h-7 rounded-md bg-black/50 text-muted hover:text-champagne text-xs"
-                          onClick={() => setCatModal(cObj)}>✎</button>
-                        <button title="Excluir categoria" className="w-7 h-7 rounded-md bg-black/50 text-muted hover:text-red-300 text-xs"
-                          onClick={() => excluirCat(cObj)}>✕</button>
-                      </>
-                    )}
-                  </div>
-                </div>
-                <div className="p-4 flex flex-col gap-1.5 flex-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted">{mats.length} {mats.length === 1 ? "material" : "materiais"}</span>
-                    <button className="text-xs text-champagne hover:underline" onClick={() => setModal({ ...vazio, categoria: cat })}>+ material</button>
-                  </div>
-                  {mats.length === 0 ? (
-                    <p className="text-xs text-muted py-3 text-center">Nenhum material nesta categoria ainda.</p>
-                  ) : (
-                    <ul className="space-y-1 max-h-48 overflow-auto pr-1">
-                      {mats.map((m) => (
-                        <li key={m.id} className="group flex items-center justify-between gap-2 text-sm py-1 border-b border-white/5 last:border-0">
-                          <button className="text-left truncate hover:text-champagne" onClick={() => setModal(m)} title={m.nome}>
-                            {m.nome}
-                            <span className="text-muted text-xs"> · {m.unidade}</span>
-                          </button>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className="text-champagne font-semibold text-xs">{moeda(m.preco_custo)}</span>
-                            <button className="text-muted hover:text-red-300 opacity-0 group-hover:opacity-100 text-xs" onClick={() => excluir(m)}>✕</button>
-                          </div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </Card>
-            );
-          })}
+          {catsParaCards.map((cat) => (
+            <CategoriaCard
+              key={cat}
+              cat={cat}
+              cObj={categorias.find((c) => c.nome === cat)}
+              mats={filtrados.filter((m) => m.categoria === cat)}
+              categoriaModelo={modeloDe(cat)}
+              onNovoMaterial={() => setModal({ ...vazio, categoria: cat })}
+              onEditarMaterial={(m) => setModal(m)}
+              onExcluirMaterial={excluir}
+              onEditarCategoria={(c) => setCatModal(c)}
+              onExcluirCategoria={excluirCat}
+            />
+          ))}
         </div>
       ) : (
         <div className="space-y-6">
@@ -260,5 +228,87 @@ export default function Catalogo() {
         )}
       </Modal>
     </div>
+  );
+}
+
+// Card de categoria com preview 3D que reflete o ITEM em foco (hover/seleção).
+function CategoriaCard({
+  cat,
+  cObj,
+  mats,
+  categoriaModelo,
+  onNovoMaterial,
+  onEditarMaterial,
+  onExcluirMaterial,
+  onEditarCategoria,
+  onExcluirCategoria,
+}: {
+  cat: string;
+  cObj?: Categoria;
+  mats: Material[];
+  categoriaModelo: string;
+  onNovoMaterial: () => void;
+  onEditarMaterial: (m: Material) => void;
+  onExcluirMaterial: (m: Material) => void;
+  onEditarCategoria: (c: Categoria) => void;
+  onExcluirCategoria: (c: Categoria) => void;
+}) {
+  const [focadoId, setFocadoId] = useState<number | null>(null);
+  const focado = mats.find((m) => m.id === focadoId) || mats[0] || null;
+  const modeloPreview = focado ? inferItemModel(focado.nome, focado.categoria) || categoriaModelo : categoriaModelo;
+
+  return (
+    <Card className="!p-0 overflow-hidden flex flex-col">
+      <div className="relative h-44 bg-gradient-to-b from-black/10 to-black/40">
+        {/* o modelo troca dentro do mesmo canvas (sem recriar contexto WebGL) */}
+        <CategoriaModel3D modelo={modeloPreview} className="absolute inset-0" />
+        <div className="absolute top-2 left-2"><Badge tone="wood">{cat}</Badge></div>
+        <div className="absolute top-2 right-2 flex gap-1">
+          {cObj && (
+            <>
+              <button title="Editar categoria" className="w-7 h-7 rounded-md bg-black/50 text-muted hover:text-champagne text-xs"
+                onClick={() => onEditarCategoria(cObj)}>✎</button>
+              <button title="Excluir categoria" className="w-7 h-7 rounded-md bg-black/50 text-muted hover:text-red-300 text-xs"
+                onClick={() => onExcluirCategoria(cObj)}>✕</button>
+            </>
+          )}
+        </div>
+        {focado && (
+          <div className="absolute bottom-2 left-2 right-2 truncate rounded-md bg-black/55 px-2 py-1 text-[11px] text-champagne backdrop-blur">
+            {focado.nome}
+          </div>
+        )}
+      </div>
+      <div className="p-4 flex flex-col gap-1.5 flex-1">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted">{mats.length} {mats.length === 1 ? "material" : "materiais"} · passe o mouse para ver em 3D</span>
+          <button className="text-xs text-champagne hover:underline" onClick={onNovoMaterial}>+ material</button>
+        </div>
+        {mats.length === 0 ? (
+          <p className="text-xs text-muted py-3 text-center">Nenhum material nesta categoria ainda.</p>
+        ) : (
+          <ul className="space-y-1 max-h-48 overflow-auto pr-1">
+            {mats.map((m) => (
+              <li
+                key={m.id}
+                onMouseEnter={() => setFocadoId(m.id)}
+                className={`group flex items-center justify-between gap-2 text-sm py-1 px-1 -mx-1 rounded border-b border-white/5 last:border-0 transition ${
+                  focado?.id === m.id ? "bg-champagne/10" : ""
+                }`}
+              >
+                <button className="text-left truncate hover:text-champagne" onClick={() => onEditarMaterial(m)} title={m.nome}>
+                  {m.nome}
+                  <span className="text-muted text-xs"> · {m.unidade}</span>
+                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <span className="text-champagne font-semibold text-xs">{moeda(m.preco_custo)}</span>
+                  <button className="text-muted hover:text-red-300 opacity-0 group-hover:opacity-100 text-xs" onClick={() => onExcluirMaterial(m)}>✕</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Card>
   );
 }

@@ -144,7 +144,7 @@ export default function CRM() {
   const porEtapa = (et: string) => negocios.filter((n) => n.etapa === et).sort((a, b) => a.ordem - b.ordem);
 
   return (
-    <div>
+    <div className="flex-1 min-h-0 flex flex-col">
       <PageHeader title="Funil comercial" subtitle="Arraste os cards entre as etapas"
         actions={
           <div className="flex gap-2">
@@ -156,7 +156,7 @@ export default function CRM() {
         } />
 
       <DragDropContext onDragEnd={onDragEnd}>
-        <div data-tour="crm-board" className="flex gap-3 overflow-x-auto pb-4">
+        <div data-tour="crm-board" className="flex gap-3 overflow-x-auto flex-1 min-h-0 pb-1">
           {ABERTAS.map((etapa) => {
             const cards = porEtapa(etapa);
             const total = cards.reduce((s, n) => s + n.valor_estimado, 0);
@@ -164,8 +164,8 @@ export default function CRM() {
             return (
               <Droppable droppableId={etapa} key={etapa}>
                 {(prov, snap) => (
-                  <div className="w-72 shrink-0">
-                    <div className="flex items-center justify-between px-1 mb-2">
+                  <div className="w-72 shrink-0 flex flex-col min-h-0">
+                    <div className="flex items-center justify-between px-1 mb-2 shrink-0">
                       <div className="flex items-center gap-2">
                         <span className={`text-sm font-semibold ${ganho ? "text-champagne" : "text-text"}`}>{etapa}</span>
                         <span className="text-xs text-muted">{cards.length}</span>
@@ -173,7 +173,7 @@ export default function CRM() {
                       <span className="text-[11px] text-muted">{moedaCurta(total)}</span>
                     </div>
                     <div ref={prov.innerRef} {...prov.droppableProps}
-                      className={`space-y-2 rounded-xl p-2 min-h-[120px] transition ${snap.isDraggingOver ? "bg-champagne/5 ring-1 ring-champagne/20" : "bg-surface/40"}`}>
+                      className={`space-y-2 rounded-xl p-2 flex-1 min-h-0 overflow-y-auto transition ${snap.isDraggingOver ? "bg-champagne/5 ring-1 ring-champagne/20" : "bg-surface/40"}`}>
                       {cards.map((n, i) => (
                         <Draggable draggableId={String(n.id)} index={i} key={n.id}>
                           {(p, s) => (

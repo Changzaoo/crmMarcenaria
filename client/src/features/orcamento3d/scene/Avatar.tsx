@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
-import type { Group, Object3D } from "three";
+import type { Group, AnimationAction, AnimationMixer } from "three";
 import type { Role } from "../types";
-import { getAvatarModel } from "../avatarModel";
+import { getAvatarModel, type AvatarInstance } from "../avatarModel";
 
 interface Props {
   role: Role;
@@ -18,25 +18,45 @@ function shortName(name?: string) {
   return name.trim().split(/\s+/).slice(0, 2).join(" ");
 }
 
-// Avatar com o modelo 3D real (OBJ) do cliente/arquiteto. Modelos sem esqueleto,
-// então a "caminhada" é procedural (balanço vertical + gingado + leve inclinação).
 export default function Avatar({ role, name, moving = false, label = true }: Props) {
   const rig = useRef<Group>(null);
-  const [model, setModel] = useState<Object3D | null>(null);
+  const [inst, setInst] = useState<AvatarInstance | null>(null);
+  const mixerRef = useRef<AnimationMixer | null>(null);
+  const currentAction = useRef<AnimationAction | null>(null);
 
   useEffect(() => {
     let alive = true;
     getAvatarModel(role)
-      .then((o) => alive && setModel(o))
+      .then((a) => {
+        if (!alive) return;
+        setInst(a);
+        mixerRef.current = a.mixer;
+        if (a.idle) {
+          a.idle.play();
+          currentAction.current = a.idle;
+        }
+      })
       .catch(() => {});
     return () => {
       alive = false;
+      mixerRef.current?.stopAllAction();
     };
   }, [role]);
 
-  useFrame((state) => {
-    const t = state.clock.elapsedTime;
+  useFrame((state, delta) => {
+    const mixer = mixerRef.current;
+    if (mixer && inst) {
+      mixer.update(delta);
+      const want = moving ? inst.walk : inst.idle;
+      if (want && currentAction.current !== want) {
+        currentAction.current?.fadeOut(0.25);
+        want.reset().fadeIn(0.25).play();
+        currentAction.current = want;
+      }
+      return;
+    }
     if (!rig.current) return;
+    const t = state.clock.elapsedTime;
     if (moving) {
       const ph = t * 7.5;
       rig.current.position.y = Math.abs(Math.sin(ph)) * 0.06;
@@ -51,15 +71,14 @@ export default function Avatar({ role, name, moving = false, label = true }: Pro
 
   return (
     <group>
-      {/* sombra no chão */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.012, 0]}>
         <circleGeometry args={[0.34, 28]} />
         <meshBasicMaterial color="#000000" transparent opacity={0.28} />
       </mesh>
 
       <group ref={rig}>
-        {model ? (
-          <primitive object={model} dispose={null} />
+        {inst ? (
+          <primitive object={inst.object} dispose={null} />
         ) : (
           <mesh position={[0, 0.85, 0]} castShadow>
             <capsuleGeometry args={[0.18, 0.95, 6, 12]} />

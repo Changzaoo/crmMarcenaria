@@ -50,7 +50,7 @@ export default function Layout({ children }: { children: ReactNode }) {
             <div className="w-10 h-10 rounded-lg bg-champagne text-background grid place-items-center font-display text-xl">L</div>
             <div className="hidden lg:block">
               <div className="font-display text-2xl tracking-[0.24em] text-text">LINEAR</div>
-              <div className="text-[10px] uppercase tracking-[0.2em] text-champagne mt-1">Marcenaria Corporativa</div>
+              <div className="text-[10px] uppercase tracking-[0.2em] text-champagne mt-1">Marcenaria</div>
             </div>
           </div>
         </div>
@@ -126,7 +126,7 @@ export default function Layout({ children }: { children: ReactNode }) {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.25 }}
-          className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8"
+          className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6 lg:py-8 min-h-full flex flex-col"
         >
           {children}
         </motion.div>
