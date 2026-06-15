@@ -16,6 +16,14 @@ const isNew = !existsSync(DB_PATH);
 export const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
 db.pragma("foreign_keys = ON");
+
+// Antes de criar o schema: registra quais tabelas JÁ existiam. Assim semeamos os
+// padrões apenas quando a tabela é criada agora (1ª vez / DB novo) — e nunca
+// "ressuscitamos" registros que o usuário apagou de propósito.
+const tabelaJaExistia = (nome) => !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(nome);
+const categoriasJaExistia = tabelaJaExistia("categorias");
+const funcionariosJaExistia = tabelaJaExistia("funcionarios");
+
 db.exec(SCHEMA);
 
 // Migrações idempotentes para colunas adicionadas após a 1ª versão do schema.
@@ -64,10 +72,9 @@ if (!cfg) {
   ).run();
 }
 
-// Popula categorias do catálogo (idempotente): defaults + categorias já usadas
-// em materiais que ainda não estejam na tabela. Roda também em bancos antigos.
-const catCount = db.prepare("SELECT COUNT(*) c FROM categorias").get().c;
-if (catCount === 0) {
+// Popula categorias do catálogo SÓ na criação da tabela (não toda vez que está
+// vazia) — assim apagar todas não as traz de volta no próximo start.
+if (!categoriasJaExistia) {
   const ins = db.prepare("INSERT OR IGNORE INTO categorias (nome, modelo, ordem) VALUES (?,?,?)");
   const seedCats = db.transaction(() => {
     CATEGORIAS_PADRAO.forEach((c, i) => ins.run(c.nome, c.modelo, i));
@@ -77,9 +84,8 @@ if (catCount === 0) {
   seedCats();
 }
 
-// Equipe inicial de funcionários (idempotente) — sem isso a página nasce vazia.
-const funcCount = db.prepare("SELECT COUNT(*) c FROM funcionarios").get().c;
-if (funcCount === 0) {
+// Equipe inicial — também só na criação da tabela (respeita exclusões do usuário).
+if (!funcionariosJaExistia) {
   const insF = db.prepare("INSERT INTO funcionarios (nome, funcao, cor, ativo) VALUES (?,?,?,1)");
   const seedFunc = db.transaction(() => FUNCIONARIOS_PADRAO.forEach((f) => insF.run(f.nome, f.funcao, f.cor)));
   seedFunc();
