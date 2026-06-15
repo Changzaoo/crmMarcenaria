@@ -27,6 +27,11 @@ export const MATERIALS: MaterialDef[] = [
 
 export const MATERIAL_BY_ID = Object.fromEntries(MATERIALS.map((m) => [m.id, m]));
 
+import { materialLook } from "../../shared3d";
+
+/* O LOOK (cor/roughness/metalness) vem da fonte única `shared3d/materials`,
+   idêntico ao site. O rótulo e o fator de preço continuam locais. */
 export function getMaterial(id: string): MaterialDef {
-  return MATERIAL_BY_ID[id] || MATERIALS[0];
+  const base = MATERIAL_BY_ID[id] || MATERIALS[0];
+  return { ...base, ...materialLook(id) };
 }

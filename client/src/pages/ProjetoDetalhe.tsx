@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { ExternalLink, ImagePlus, Trash2 } from "lucide-react";
 import { api } from "../lib/api";
 import { moeda, data } from "../lib/format";
-import { EtapaAnexo, Projeto, ProjetoEtapa } from "../types";
+import { EtapaAnexo, Funcionario, Projeto, ProjetoEtapa } from "../types";
 import { imprimirOS } from "../lib/os";
+import { usePolling } from "../lib/usePolling";
 import { PageHeader, Card, Modal, Field, Input, Select, Badge, useUI, Spinner } from "../components/ui";
 
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
@@ -30,15 +31,23 @@ function arquivoParaDataUrl(file: File) {
 
 export default function ProjetoDetalhe() {
   const { id } = useParams();
-  const { toast } = useUI();
+  const nav = useNavigate();
+  const { toast, confirm } = useUI();
   const [p, setP] = useState<Projeto | null>(null);
   const [aberta, setAberta] = useState<number | null>(null);
   const [edit, setEdit] = useState<Partial<Projeto> | null>(null);
   const [uploadingEtapa, setUploadingEtapa] = useState<number | null>(null);
+  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
 
   const set = (x: Projeto) => setP(x);
   const carregar = () => api.get<Projeto>(`/projetos/${id}`).then(set);
-  useEffect(() => { carregar(); }, [id]);
+  useEffect(() => {
+    carregar();
+    api.get<Funcionario[]>("/funcionarios").then(setFuncionarios).catch(() => {});
+  }, [id]);
+
+  // Mantém o projeto atualizado sem botão (pausa durante edição/upload).
+  usePolling(() => { if (!edit && uploadingEtapa === null) carregar(); }, 12000);
 
   if (!p) return <Spinner />;
 
@@ -48,6 +57,13 @@ export default function ProjetoDetalhe() {
   const addChk = async (eid: number, texto: string) => set(await api.post<Projeto>(`/projetos/etapas/${eid}/checklist`, { texto }));
   const delChk = async (cid: number) => set(await api.del<Projeto>(`/projetos/checklist/${cid}`));
   const salvarEdit = async () => { set(await api.put<Projeto>(`/projetos/${id}`, { ...p, ...edit })); setEdit(null); toast("Projeto atualizado."); };
+  const setResponsavel = async (et: ProjetoEtapa, fid: number | null) =>
+    set(await api.patch<Projeto>(`/projetos/etapas/${et.id}`, { funcionario_id: fid }));
+  const excluirProjeto = async () => {
+    if (!(await confirm(`Excluir o projeto "${p.nome}"? Remove etapas, checklist e parcelas.`))) return;
+    try { await api.del(`/projetos/${id}`); toast("Projeto excluído."); nav("/projetos"); }
+    catch (e: unknown) { toast(e instanceof Error ? e.message : "Falha ao excluir.", "err"); }
+  };
   const uploadImagem = async (et: ProjetoEtapa, file: File) => {
     if (!file.type.startsWith("image/")) {
       toast("Selecione um arquivo de imagem.", "err");
@@ -95,6 +111,7 @@ export default function ProjetoDetalhe() {
             <Link to="/projetos" className="btn-ghost">← Voltar</Link>
             <button className="btn-ghost" onClick={() => imprimirOS(p)}>Ordem de Serviço</button>
             <button className="btn-ghost" onClick={() => setEdit({ ...p })}>Editar</button>
+            <button className="btn-danger" onClick={excluirProjeto}>Excluir</button>
           </div>
         } />
 
@@ -116,10 +133,18 @@ export default function ProjetoDetalhe() {
                     className={`w-6 h-6 rounded-full grid place-items-center text-xs shrink-0 border ${et.concluida ? "bg-champagne text-background border-champagne" : "border-white/20 text-muted"}`}>
                     {et.concluida ? "✓" : et.numero}
                   </button>
-                  <button className="flex-1 text-left" onClick={() => setAberta(aberta === et.id ? null : et.id)}>
+                  <button className="flex-1 text-left min-w-0" onClick={() => setAberta(aberta === et.id ? null : et.id)}>
                     <span className={`font-medium ${et.concluida ? "text-champagne" : ""}`}>{et.nome}</span>
                     {et.checklist.length > 0 && <span className="text-xs text-muted ml-2">{feitos}/{et.checklist.length}</span>}
                   </button>
+                  {et.funcionario_nome ? (
+                    <span className="hidden sm:flex items-center gap-1.5 text-xs text-muted shrink-0" title={`Responsável: ${et.funcionario_nome}`}>
+                      <span className="w-2 h-2 rounded-full" style={{ background: et.funcionario_cor || "#D8B978" }} />
+                      {et.funcionario_nome}
+                    </span>
+                  ) : (
+                    <span className="hidden sm:inline text-[11px] text-muted/60 shrink-0">sem responsável</span>
+                  )}
                   <span className="text-muted text-xs">{aberta === et.id ? "▲" : "▼"}</span>
                 </div>
 
@@ -135,6 +160,14 @@ export default function ProjetoDetalhe() {
                       ))}
                     </div>
                     <AddChecklist onAdd={(t) => addChk(et.id, t)} />
+                    <Field label="Responsável pela etapa">
+                      <Select value={et.funcionario_id ?? ""} onChange={(e) => setResponsavel(et, e.target.value ? Number(e.target.value) : null)}>
+                        <option value="">— Sem responsável</option>
+                        {funcionarios.filter((f) => f.ativo).map((f) => (
+                          <option key={f.id} value={f.id}>{f.nome}{f.funcao ? ` · ${f.funcao}` : ""}</option>
+                        ))}
+                      </Select>
+                    </Field>
                     <Field label="Observações da etapa">
                       <textarea className="input" rows={2} defaultValue={et.observacoes || ""} onBlur={(e) => e.target.value !== (et.observacoes || "") && salvarObs(et, e.target.value)} />
                     </Field>
@@ -215,7 +248,10 @@ export default function ProjetoDetalhe() {
                   {["Em andamento", "Concluído", "Cancelado", "Pausado"].map((s) => <option key={s}>{s}</option>)}
                 </Select>
               </Field>
-              <Field label="Responsável"><Input value={edit.responsavel || ""} onChange={(e) => setEdit({ ...edit, responsavel: e.target.value })} /></Field>
+              <Field label="Responsável">
+                <input className="input" list="proj-func" value={edit.responsavel || ""} onChange={(e) => setEdit({ ...edit, responsavel: e.target.value })} />
+                <datalist id="proj-func">{funcionarios.filter((f) => f.ativo).map((f) => <option key={f.id} value={f.nome}>{f.funcao || ""}</option>)}</datalist>
+              </Field>
               <Field label="Contrato"><Input type="date" value={edit.data_contrato?.slice(0,10) || ""} onChange={(e) => setEdit({ ...edit, data_contrato: e.target.value })} /></Field>
               <Field label="Previsão entrega"><Input type="date" value={edit.previsao_entrega?.slice(0,10) || ""} onChange={(e) => setEdit({ ...edit, previsao_entrega: e.target.value })} /></Field>
               <Field label="Instalação"><Input type="date" value={edit.data_instalacao?.slice(0,10) || ""} onChange={(e) => setEdit({ ...edit, data_instalacao: e.target.value })} /></Field>

@@ -43,33 +43,57 @@ async function dataUrlToArrayBuffer(dataUrl: string): Promise<ArrayBuffer> {
 export async function loadModelObject(dataUrl: string, format: ModelFormat): Promise<THREE.Object3D> {
   const buffer = await dataUrlToArrayBuffer(dataUrl);
 
-  if (format === "glb" || format === "gltf") {
-    const { GLTFLoader } = await import("three/examples/jsm/loaders/GLTFLoader.js");
-    const loader = new GLTFLoader();
-    const payload: ArrayBuffer | string =
-      format === "gltf" ? new TextDecoder().decode(buffer) : buffer;
-    const gltf = await new Promise<any>((resolve, reject) =>
-      loader.parse(payload as any, "", resolve, reject)
-    );
-    return gltf.scene as THREE.Object3D;
-  }
+  try {
+    if (format === "glb" || format === "gltf") {
+      const { GLTFLoader } = await import("three/examples/jsm/loaders/GLTFLoader.js");
+      const { DRACOLoader } = await import("three/examples/jsm/loaders/DRACOLoader.js");
+      const { MeshoptDecoder } = await import("three/examples/jsm/libs/meshopt_decoder.module.js");
 
-  if (format === "obj") {
-    const { OBJLoader } = await import("three/examples/jsm/loaders/OBJLoader.js");
-    return new OBJLoader().parse(new TextDecoder().decode(buffer));
-  }
+      const loader = new GLTFLoader();
+      // Suporte a malhas comprimidas (Draco/Meshopt) — sem isto, GLBs do Sketchfab,
+      // Blender, etc. falham com "No DRACOLoader instance provided".
+      const draco = new DRACOLoader();
+      draco.setDecoderPath("/draco/");
+      loader.setDRACOLoader(draco);
+      try {
+        await (MeshoptDecoder as { ready?: Promise<unknown> }).ready;
+        (loader as unknown as { setMeshoptDecoder: (d: unknown) => void }).setMeshoptDecoder(MeshoptDecoder);
+      } catch {
+        /* meshopt opcional */
+      }
 
-  if (format === "stl") {
-    const { STLLoader } = await import("three/examples/jsm/loaders/STLLoader.js");
-    const geo = new STLLoader().parse(buffer);
-    geo.computeVertexNormals();
-    const mat = new THREE.MeshStandardMaterial({ color: "#c9c2b5", roughness: 0.7, metalness: 0.05 });
-    return new THREE.Mesh(geo, mat);
-  }
+      // .gltf de texto self-contained vira string; .glb (binário) usa o ArrayBuffer.
+      const payload: ArrayBuffer | string = format === "gltf" ? new TextDecoder().decode(buffer) : buffer;
+      const gltf = await new Promise<{ scene: THREE.Object3D }>((resolve, reject) =>
+        loader.parse(payload as ArrayBuffer, "", resolve as (g: unknown) => void, reject)
+      );
+      draco.dispose();
+      return gltf.scene;
+    }
 
-  // fbx
-  const { FBXLoader } = await import("three/examples/jsm/loaders/FBXLoader.js");
-  return new FBXLoader().parse(buffer, "");
+    if (format === "obj") {
+      const { OBJLoader } = await import("three/examples/jsm/loaders/OBJLoader.js");
+      return new OBJLoader().parse(new TextDecoder().decode(buffer));
+    }
+
+    if (format === "stl") {
+      const { STLLoader } = await import("three/examples/jsm/loaders/STLLoader.js");
+      const geo = new STLLoader().parse(buffer);
+      geo.computeVertexNormals();
+      const mat = new THREE.MeshStandardMaterial({ color: "#c9c2b5", roughness: 0.7, metalness: 0.05 });
+      return new THREE.Mesh(geo, mat);
+    }
+
+    // fbx — binário (ArrayBuffer) ou ASCII (texto)
+    const { FBXLoader } = await import("three/examples/jsm/loaders/FBXLoader.js");
+    const ehBinario = new Uint8Array(buffer, 0, 18).reduce((s, c) => s + String.fromCharCode(c), "").startsWith("Kaydara");
+    return new FBXLoader().parse(ehBinario ? buffer : new TextDecoder().decode(buffer), "");
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/draco/i.test(msg)) throw new Error("Modelo comprimido (Draco) não pôde ser lido. Exporte sem compressão Draco e tente de novo.");
+    if (/ktx2|basis/i.test(msg)) throw new Error("Modelo usa texturas KTX2/Basis, não suportadas no preview. Exporte com texturas comuns (PNG/JPG).");
+    throw new Error(`Não foi possível ler o modelo (${format}). Detalhe: ${msg}`);
+  }
 }
 
 /** Caixa delimitadora (em metros) de um objeto carregado. */

@@ -118,6 +118,33 @@ export interface Categoria {
   criado_em?: string;
 }
 
+export interface Funcionario {
+  id: number;
+  nome: string;
+  funcao?: string;
+  email?: string;
+  telefone?: string;
+  cor?: string;
+  ativo: number;
+  observacoes?: string;
+  criado_em?: string;
+}
+
+export const FUNCOES_FUNCIONARIO = [
+  "Vendas",
+  "Atendimento",
+  "Projetista",
+  "Orçamentista",
+  "Marceneiro",
+  "Produção",
+  "Logística",
+  "Instalador",
+  "Montador",
+  "Pós-venda",
+  "Gestor",
+  "Outro",
+];
+
 export interface ItemMaterial {
   id: number;
   item_id: number;
@@ -206,6 +233,10 @@ export interface ProjetoEtapa {
   concluida: number;
   observacoes?: string;
   anexos?: string;
+  funcionario_id?: number | null;
+  funcionario_nome?: string | null;
+  funcionario_cor?: string | null;
+  funcionario_funcao?: string | null;
   checklist: ChecklistItem[];
 }
 

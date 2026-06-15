@@ -2,6 +2,8 @@ import empresas from "./empresas.js";
 import negocios from "./negocios.js";
 import materiais from "./materiais.js";
 import categorias from "./categorias.js";
+import funcionarios from "./funcionarios.js";
+import whatsapp from "./whatsapp.js";
 import orcamentos from "./orcamentos.js";
 import projetos from "./projetos.js";
 import agenda from "./agenda.js";
@@ -21,6 +23,8 @@ export function mountRoutes(api) {
   api.use("/negocios", negocios);
   api.use("/materiais", materiais);
   api.use("/categorias", categorias);
+  api.use("/funcionarios", funcionarios);
+  api.use("/whatsapp", whatsapp);
   api.use("/orcamentos", orcamentos);
   api.use("/projetos", projetos);
   api.use("/agenda", agenda);

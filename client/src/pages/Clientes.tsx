@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../lib/api";
 import { Empresa, SEGMENTOS } from "../types";
+import { usePolling } from "../lib/usePolling";
 import { PageHeader, Card, EmptyState, Modal, Field, Input, Select, Textarea, Badge, useUI, Spinner } from "../components/ui";
 
 const vazio: Partial<Empresa> = { razao_social: "", nome_fantasia: "", cnpj: "", segmento: "loja", is_arquiteto: 0, cidade: "", endereco: "", observacoes: "" };
 
 export default function Clientes() {
-  const { toast } = useUI();
+  const { toast, confirm } = useUI();
   const [lista, setLista] = useState<Empresa[] | null>(null);
   const [busca, setBusca] = useState("");
   const [tipo, setTipo] = useState("");
@@ -15,6 +16,7 @@ export default function Clientes() {
 
   const carregar = () => api.get<Empresa[]>("/empresas").then(setLista);
   useEffect(() => { carregar(); }, []);
+  usePolling(() => { if (!modal) carregar(); }, 15000);
 
   const salvar = async () => {
     if (!modal?.razao_social) return toast("Informe a razão social.", "err");
@@ -23,6 +25,14 @@ export default function Clientes() {
       setModal(null); carregar(); toast("Cliente cadastrado.");
       return nova;
     } catch (e: any) { toast(e.message, "err"); }
+  };
+
+  const excluir = async (emp: Empresa, ev: React.MouseEvent) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    if (!(await confirm(`Excluir o cliente "${emp.nome_fantasia || emp.razao_social}"? Remove também seus contatos.`))) return;
+    try { await api.del(`/empresas/${emp.id}`); carregar(); toast("Cliente excluído."); }
+    catch (e: unknown) { toast(e instanceof Error ? e.message : "Falha ao excluir.", "err"); }
   };
 
   if (!lista) return <Spinner />;
@@ -62,6 +72,7 @@ export default function Clientes() {
                   <span>{e.cidade || "—"}</span>
                   <span>·</span>
                   <span>{e.total_contatos || 0} contato(s)</span>
+                  <button className="ml-auto text-muted hover:text-red-300" onClick={(ev) => excluir(e, ev)}>Excluir</button>
                 </div>
               </Card>
             </Link>

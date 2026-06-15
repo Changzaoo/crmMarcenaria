@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Canvas } from "@react-three/fiber";
-import { ContactShadows } from "@react-three/drei";
 import { useStudio } from "../store";
+import { SceneEnvironment } from "../../../shared3d";
 import type { Peer, Role } from "../types";
 import Room from "./Room";
 import FurnitureMesh from "./FurnitureMesh";
@@ -31,24 +31,8 @@ export default function ThreeDScene({ peers, selfPeerId, role, name, touch, onSe
 
   return (
     <Canvas shadows dpr={[1, 1.8]} gl={{ antialias: true }} onPointerMissed={() => select(null)}>
-      <color attach="background" args={["#0b0a09"]} />
-      <fog attach="fog" args={["#0b0a09", 18, 42]} />
-
-      {/* Iluminação premium */}
-      <ambientLight intensity={0.5} />
-      <hemisphereLight args={["#fff4e0", "#1a1612", 0.5]} />
-      <directionalLight
-        position={[6, 9, 5]}
-        intensity={1.15}
-        castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-12}
-        shadow-camera-right={12}
-        shadow-camera-top={12}
-        shadow-camera-bottom={-12}
-      />
-      {/* luz de preenchimento quente para dar volume sem depender de HDR externo */}
-      <pointLight position={[-4, 3, -4]} intensity={0.4} color="#ffd9a0" />
+      {/* Ambiente de render ÚNICO (fonte: shared3d) — idêntico no site e no CRM */}
+      <SceneEnvironment maxDim={Math.max(bounds.L, bounds.C)} mobile={!!touch} />
 
       <Room env={env} wallMode={wallMode} activeFloor={activeFloor} isFloorVisible={isFloorVisible} />
 
@@ -93,8 +77,6 @@ export default function ThreeDScene({ peers, selfPeerId, role, name, touch, onSe
         onSelfMove={onSelfMove}
         onMovingChange={(m) => { setMoving(m); onMoving?.(m); }}
       />
-
-      <ContactShadows position={[0, floorY + 0.005, 0]} opacity={0.45} scale={Math.max(bounds.L, bounds.C) * 1.4} blur={2.4} far={4} />
     </Canvas>
   );
 }

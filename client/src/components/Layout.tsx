@@ -12,7 +12,9 @@ import {
   LayoutDashboard,
   Library,
   LogOut,
+  MessageCircle,
   Settings,
+  UserCog,
   UsersRound,
   WalletCards,
 } from "lucide-react";
@@ -29,9 +31,11 @@ const NAV = [
   { to: "/projetos", label: "Projetos", icon: Hammer },
   { to: "/suporte-3d", label: "Suporte 3D", icon: Box },
   { to: "/catalogo", label: "Catálogo", icon: Library },
+  { to: "/funcionarios", label: "Funcionários", icon: UserCog },
   { to: "/agenda", label: "Agenda", icon: CalendarDays },
   { to: "/financeiro", label: "Financeiro", icon: WalletCards },
   { to: "/pos-venda", label: "Pós-venda", icon: HeartHandshake },
+  { to: "/whatsapp", label: "WhatsApp", icon: MessageCircle },
   { to: "/config", label: "Configurações", icon: Settings },
 ] satisfies Array<{ to: string; label: string; icon: LucideIcon; end?: boolean }>;
 

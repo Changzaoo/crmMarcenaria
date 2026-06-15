@@ -122,6 +122,18 @@ CREATE TABLE IF NOT EXISTS orcamento_item_materiais (
   aplica_perda INTEGER NOT NULL DEFAULT 1
 );
 
+CREATE TABLE IF NOT EXISTS funcionarios (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nome TEXT NOT NULL,
+  funcao TEXT,
+  email TEXT,
+  telefone TEXT,
+  cor TEXT,
+  ativo INTEGER NOT NULL DEFAULT 1,
+  observacoes TEXT,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS projetos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   negocio_id INTEGER REFERENCES negocios(id) ON DELETE SET NULL,
@@ -149,7 +161,8 @@ CREATE TABLE IF NOT EXISTS projeto_etapas (
   nome TEXT NOT NULL,
   concluida INTEGER NOT NULL DEFAULT 0,
   observacoes TEXT,
-  anexos TEXT
+  anexos TEXT,
+  funcionario_id INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS etapa_checklist (
@@ -200,7 +213,12 @@ CREATE TABLE IF NOT EXISTS configuracoes (
   empresa_telefone TEXT,
   empresa_email TEXT,
   empresa_endereco TEXT,
-  empresa_slogan TEXT
+  empresa_slogan TEXT,
+  whatsapp_token TEXT,
+  whatsapp_phone_id TEXT,
+  whatsapp_business_id TEXT,
+  whatsapp_numero TEXT,
+  whatsapp_ativo INTEGER NOT NULL DEFAULT 0
 );
 
 -- ===== Orçamento 3D (leads + projetos do estúdio 3D) =====
@@ -275,6 +293,32 @@ export const ETAPAS_CRM = [
   "Negociação",
   "Fechado (ganho)",
   "Perdido",
+];
+
+// Funções/cargos sugeridos para os funcionários da marcenaria.
+export const FUNCOES_FUNCIONARIO = [
+  "Vendas",
+  "Atendimento",
+  "Projetista",
+  "Orçamentista",
+  "Marceneiro",
+  "Produção",
+  "Logística",
+  "Instalador",
+  "Montador",
+  "Pós-venda",
+  "Gestor",
+  "Outro",
+];
+
+// Equipe inicial (criada na primeira subida quando ainda não há funcionários).
+export const FUNCIONARIOS_PADRAO = [
+  { nome: "Ana Souza", funcao: "Vendas", cor: "#D8B978" },
+  { nome: "Carlos Lima", funcao: "Projetista", cor: "#7FB2E5" },
+  { nome: "Rafael Nunes", funcao: "Orçamentista", cor: "#9B8CFF" },
+  { nome: "João Pereira", funcao: "Marceneiro", cor: "#E59E5B" },
+  { nome: "Marcos Dias", funcao: "Logística", cor: "#6FCF97" },
+  { nome: "Pedro Alves", funcao: "Instalador", cor: "#F2A6A6" },
 ];
 
 // Modelos 3D disponíveis para ilustrar uma categoria do catálogo.

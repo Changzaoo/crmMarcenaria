@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { FileText, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { moeda, moedaCurta, data, vencido, whatsappLink, aplicarTemplate } from "../lib/format";
-import { Negocio, NegocioDetalhe, Dados3D, Empresa, EmpresaDetalhe, TemplateWhatsapp, ETAPAS_CRM, SEGMENTOS, ORIGENS, MOTIVOS_PERDA } from "../types";
+import { Negocio, NegocioDetalhe, Dados3D, Empresa, EmpresaDetalhe, Funcionario, TemplateWhatsapp, ETAPAS_CRM, SEGMENTOS, ORIGENS, MOTIVOS_PERDA } from "../types";
 import { PageHeader, Card, Modal, Field, Input, Select, Textarea, Badge, useUI, Spinner } from "../components/ui";
 
 const ABERTAS = ETAPAS_CRM.filter((e) => e !== "Perdido");
@@ -26,7 +26,9 @@ export default function CRM() {
   const nav = useNavigate();
   const [negocios, setNegocios] = useState<Negocio[] | null>(null);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
+  const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [erroCarga, setErroCarga] = useState<string | null>(null);
+  const arrastando = useRef(false);
   const [novo, setNovo] = useState<Partial<Negocio> | null>(null);
   const [detalheId, setDetalheId] = useState<number | null>(null);
   const [perda, setPerda] = useState<{ id: number; ordem: number; motivo: string } | null>(null);
@@ -68,12 +70,14 @@ export default function CRM() {
   const carregarTudo = async () => {
     try {
       await sincronizar3d(); // traz Orçamentos 3D para o funil antes de listar
-      const [dadosNegocios, dadosEmpresas] = await Promise.all([
+      const [dadosNegocios, dadosEmpresas, dadosFunc] = await Promise.all([
         api.get<Negocio[]>("/negocios"),
         api.get<Empresa[]>("/empresas"),
+        api.get<Funcionario[]>("/funcionarios").catch(() => []),
       ]);
       setNegocios(dadosNegocios);
       setEmpresas(dadosEmpresas);
+      setFuncionarios(dadosFunc);
       setErroCarga(null);
     } catch (error) {
       const msg = apiErrorMessage(error);
@@ -92,7 +96,22 @@ export default function CRM() {
 
   useEffect(() => { carregarTudo(); }, []);
 
+  // Auto-atualização: a cada 12s recarrega o funil; a cada ~60s também importa
+  // novos Orçamentos 3D — assim leads novos aparecem sem apertar nenhum botão.
+  useEffect(() => {
+    let n = 0;
+    const t = setInterval(async () => {
+      if (arrastando.current || document.visibilityState !== "visible") return;
+      n += 1;
+      if (n % 5 === 0) await sincronizar3d();
+      await carregar();
+    }, 12000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const onDragEnd = async (r: DropResult) => {
+    arrastando.current = false;
     if (!r.destination || !negocios) return;
     const id = Number(r.draggableId);
     const etapa = r.destination.droppableId;
@@ -155,7 +174,7 @@ export default function CRM() {
           </div>
         } />
 
-      <DragDropContext onDragEnd={onDragEnd}>
+      <DragDropContext onDragStart={() => { arrastando.current = true; }} onDragEnd={onDragEnd}>
         <div data-tour="crm-board" className="flex gap-3 overflow-x-auto flex-1 min-h-0 pb-1">
           {ABERTAS.map((etapa) => {
             const cards = porEtapa(etapa);
@@ -239,7 +258,13 @@ export default function CRM() {
                   {ORIGENS.map((o) => <option key={o}>{o}</option>)}
                 </Select>
               </Field>
-              <Field label="Responsável"><Input value={novo.responsavel || ""} onChange={(e) => setNovo({ ...novo, responsavel: e.target.value })} /></Field>
+              <Field label="Responsável">
+                <input className="input" list="func-list" placeholder="Quem cuida do lead…"
+                  value={novo.responsavel || ""} onChange={(e) => setNovo({ ...novo, responsavel: e.target.value })} />
+                <datalist id="func-list">
+                  {funcionarios.filter((f) => f.ativo).map((f) => <option key={f.id} value={f.nome}>{f.funcao || ""}</option>)}
+                </datalist>
+              </Field>
             </div>
             <div className="grid grid-cols-3 gap-4">
               <Field label="Valor estimado"><Input type="number" value={novo.valor_estimado ?? 0} onChange={(e) => setNovo({ ...novo, valor_estimado: Number(e.target.value) })} /></Field>
@@ -425,6 +450,19 @@ function NegocioPainel({ id, onClose }: { id: number; onClose: () => void }) {
               </div>
             </div>
           )}
+
+          <div className="pt-3 border-t border-white/5">
+            <button
+              className="text-xs text-red-300/80 hover:text-red-300"
+              onClick={async () => {
+                if (!(await confirm(`Excluir o negócio "${neg.titulo}"? Esta ação não pode ser desfeita.`))) return;
+                try { await api.del(`/negocios/${neg.id}`); toast("Negócio excluído."); onClose(); }
+                catch (e: unknown) { toast(e instanceof Error ? e.message : "Falha ao excluir.", "err"); }
+              }}
+            >
+              Excluir negócio
+            </button>
+          </div>
         </div>
 
         {/* Timeline */}

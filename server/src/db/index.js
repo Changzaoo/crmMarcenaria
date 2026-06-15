@@ -3,7 +3,7 @@ import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { existsSync, mkdirSync } from "fs";
 import { tmpdir } from "os";
-import { SCHEMA, CATEGORIAS_PADRAO, inferirModelo } from "./schema.js";
+import { SCHEMA, CATEGORIAS_PADRAO, FUNCIONARIOS_PADRAO, inferirModelo } from "./schema.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.VERCEL ? join(tmpdir(), "linear-crm") : join(__dirname, "..", "..", "..", "data");
@@ -37,6 +37,24 @@ if (!negCols.includes("dados_3d")) {
   db.exec("ALTER TABLE negocios ADD COLUMN dados_3d TEXT");
 }
 
+// Responsável por etapa do projeto (quem cuida de cada passo: produção, logística…).
+const etapaCols = db.prepare("PRAGMA table_info(projeto_etapas)").all().map((c) => c.name);
+if (!etapaCols.includes("funcionario_id")) {
+  db.exec("ALTER TABLE projeto_etapas ADD COLUMN funcionario_id INTEGER");
+}
+
+// Integração com a API do WhatsApp Business (Meta Cloud API).
+const cfgCols = db.prepare("PRAGMA table_info(configuracoes)").all().map((c) => c.name);
+for (const [col, ddl] of [
+  ["whatsapp_token", "TEXT"],
+  ["whatsapp_phone_id", "TEXT"],
+  ["whatsapp_business_id", "TEXT"],
+  ["whatsapp_numero", "TEXT"],
+  ["whatsapp_ativo", "INTEGER NOT NULL DEFAULT 0"],
+]) {
+  if (!cfgCols.includes(col)) db.exec(`ALTER TABLE configuracoes ADD COLUMN ${col} ${ddl}`);
+}
+
 // Garante linha única de configurações
 const cfg = db.prepare("SELECT id FROM configuracoes WHERE id = 1").get();
 if (!cfg) {
@@ -57,6 +75,14 @@ if (catCount === 0) {
     extras.forEach((nome, i) => ins.run(nome, inferirModelo(nome), 100 + i));
   });
   seedCats();
+}
+
+// Equipe inicial de funcionários (idempotente) — sem isso a página nasce vazia.
+const funcCount = db.prepare("SELECT COUNT(*) c FROM funcionarios").get().c;
+if (funcCount === 0) {
+  const insF = db.prepare("INSERT INTO funcionarios (nome, funcao, cor, ativo) VALUES (?,?,?,1)");
+  const seedFunc = db.transaction(() => FUNCIONARIOS_PADRAO.forEach((f) => insF.run(f.nome, f.funcao, f.cor)));
+  seedFunc();
 }
 
 export const DB_FIRST_RUN = isNew;

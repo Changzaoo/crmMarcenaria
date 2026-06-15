@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Box, Eye, LogIn, MessageCircle, Search, BellRing } from "lucide-react";
+import { Box, Eye, LogIn, MessageCircle, Search, BellRing, Trash2 } from "lucide-react";
 import { PageHeader, Card, Badge, EmptyState, Spinner, useUI } from "../../components/ui";
 import { dataHora, whatsappLink } from "../../lib/format";
-import { listarLeads, atualizarLead, STATUS_LEAD } from "./services/leadService";
+import { listarLeads, atualizarLead, removerLead, STATUS_LEAD } from "./services/leadService";
 import type { Lead3D } from "./services/leadService";
 import { dlog } from "./dlog";
 
@@ -17,7 +17,7 @@ const TONE: Record<string, "default" | "gold" | "green" | "red" | "blue" | "wood
 };
 
 export default function ArchitectSupportPage() {
-  const { toast } = useUI();
+  const { toast, confirm } = useUI();
   const navigate = useNavigate();
   const [leads, setLeads] = useState<Lead3D[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,6 +71,17 @@ export default function ArchitectSupportPage() {
       await atualizarLead(id, { status });
     } catch {
       toast("Não foi possível atualizar o status", "err");
+    }
+  }
+
+  async function excluir(l: Lead3D) {
+    if (!(await confirm(`Excluir o lead de "${l.nome}"? Isso remove o lead e o projeto 3D associado.`))) return;
+    try {
+      await removerLead(l.id);
+      setLeads((ls) => ls.filter((x) => x.id !== l.id));
+      toast("Lead removido.");
+    } catch {
+      toast("Não foi possível remover o lead.", "err");
     }
   }
 
@@ -181,6 +192,12 @@ export default function ArchitectSupportPage() {
                 >
                   <MessageCircle size={14} /> Chamar no WhatsApp
                 </a>
+                <button
+                  onClick={() => excluir(l)}
+                  className="btn-ghost text-xs py-2 col-span-2 !text-red-300/80 hover:!text-red-300 hover:!border-red-500/40"
+                >
+                  <Trash2 size={14} /> Excluir lead
+                </button>
               </div>
             </Card>
           ))}

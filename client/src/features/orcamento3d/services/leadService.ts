@@ -53,3 +53,4 @@ export const atualizarLead = (
   id: string,
   dados: { status?: string; anotacoes?: string; arquiteto_solicitado?: number }
 ) => api.patch<Lead3D>(`/leads-3d/${id}`, dados);
+export const removerLead = (id: string) => api.del<{ ok: boolean }>(`/leads-3d/${id}`);

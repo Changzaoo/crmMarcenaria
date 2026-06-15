@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { listarLeads, obterLead, atualizarLead } from "../storage/leads3dStore.js";
+import { listarLeads, obterLead, atualizarLead, removerLead } from "../storage/leads3dStore.js";
 
 // Rotas do arquiteto/suporte (autenticadas) para acompanhar os leads do 3D.
 const r = Router();
@@ -34,6 +34,14 @@ r.patch(
     const lead = await atualizarLead(req.params.id, req.body || {});
     if (!lead) return res.status(404).json({ erro: "Lead não encontrado." });
     res.json(lead);
+  })
+);
+
+r.delete(
+  "/:id",
+  asyncRoute(async (req, res) => {
+    await removerLead(req.params.id);
+    res.json({ ok: true });
   })
 );
 

@@ -7,6 +7,7 @@ export const TABELAS = [
   "interacoes",
   "materiais",
   "categorias",
+  "funcionarios",
   "orcamentos",
   "orcamento_ambientes",
   "orcamento_itens",

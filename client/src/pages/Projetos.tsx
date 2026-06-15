@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { moeda, data } from "../lib/format";
 import { Projeto, Empresa } from "../types";
+import { usePolling } from "../lib/usePolling";
 import { PageHeader, Card, EmptyState, Modal, Field, Input, Select, Badge, useUI, Spinner } from "../components/ui";
 
 export default function Projetos() {
@@ -14,6 +15,7 @@ export default function Projetos() {
 
   const carregar = () => api.get<Projeto[]>("/projetos").then(setLista);
   useEffect(() => { carregar(); api.get<Empresa[]>("/empresas").then(setEmpresas); }, []);
+  usePolling(() => { if (!novo) carregar(); }, 15000);
 
   const criar = async () => {
     if (!novo?.nome) return toast("Informe o nome.", "err");

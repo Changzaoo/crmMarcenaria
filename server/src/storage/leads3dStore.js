@@ -285,6 +285,21 @@ export async function atualizarLead(id, b) {
   return db.prepare("SELECT * FROM leads_3d WHERE id = ?").get(id);
 }
 
+// Remove o lead 3D e o projeto associado (limpeza definitiva).
+export async function removerLead(id) {
+  if (usarSupabase()) {
+    const leads = await lista(`leads_3d?id=eq.${id}&select=projeto_id&limit=1`);
+    const projetoId = leads?.[0]?.projeto_id;
+    await rest(`leads_3d?id=eq.${id}`, { method: "DELETE" });
+    if (projetoId) await rest(`projetos_3d?id=eq.${projetoId}`, { method: "DELETE" }).catch(() => {});
+    return { ok: true };
+  }
+  const lead = db.prepare("SELECT projeto_id FROM leads_3d WHERE id = ?").get(id);
+  if (lead?.projeto_id) db.prepare("DELETE FROM projetos_3d WHERE id = ?").run(lead.projeto_id);
+  db.prepare("DELETE FROM leads_3d WHERE id = ?").run(id);
+  return { ok: true };
+}
+
 function sqliteAgora() {
   return new Date().toISOString().slice(0, 19).replace("T", " ");
 }

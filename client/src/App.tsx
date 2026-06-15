@@ -14,6 +14,8 @@ import OrcamentoEditor from "./pages/OrcamentoEditor";
 import Projetos from "./pages/Projetos";
 import ProjetoDetalhe from "./pages/ProjetoDetalhe";
 import Catalogo from "./pages/Catalogo";
+import Funcionarios from "./pages/Funcionarios";
+import Whatsapp from "./pages/Whatsapp";
 import Agenda from "./pages/Agenda";
 import Financeiro from "./pages/Financeiro";
 import PosVenda from "./pages/PosVenda";
@@ -64,6 +66,8 @@ function AuthedApp() {
                 <Route path="/projetos" element={<Projetos />} />
                 <Route path="/projetos/:id" element={<ProjetoDetalhe />} />
                 <Route path="/catalogo" element={<Catalogo />} />
+                <Route path="/funcionarios" element={<Funcionarios />} />
+                <Route path="/whatsapp" element={<Whatsapp />} />
                 <Route path="/agenda" element={<Agenda />} />
                 <Route path="/financeiro" element={<Financeiro />} />
                 <Route path="/pos-venda" element={<PosVenda />} />

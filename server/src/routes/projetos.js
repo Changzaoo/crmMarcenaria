@@ -17,7 +17,11 @@ function carregar(id) {
   ).get(id);
   if (!p) return null;
   p.progresso = progresso(id);
-  p.etapas = db.prepare("SELECT * FROM projeto_etapas WHERE projeto_id = ? ORDER BY numero").all(id);
+  p.etapas = db.prepare(
+    `SELECT et.*, f.nome AS funcionario_nome, f.cor AS funcionario_cor, f.funcao AS funcionario_funcao
+     FROM projeto_etapas et LEFT JOIN funcionarios f ON f.id = et.funcionario_id
+     WHERE et.projeto_id = ? ORDER BY et.numero`
+  ).all(id);
   for (const et of p.etapas) {
     et.checklist = db.prepare("SELECT * FROM etapa_checklist WHERE etapa_id = ? ORDER BY ordem, id").all(et.id);
   }
@@ -66,6 +70,10 @@ r.patch("/etapas/:eid", (req, res) => {
   const etapa = db.prepare("SELECT * FROM projeto_etapas WHERE id = ?").get(req.params.eid);
   db.prepare("UPDATE projeto_etapas SET concluida=COALESCE(?,concluida), observacoes=COALESCE(?,observacoes), anexos=COALESCE(?,anexos) WHERE id=?")
     .run(b.concluida === undefined ? null : (b.concluida ? 1 : 0), b.observacoes ?? null, b.anexos ?? null, req.params.eid);
+  // Responsável pela etapa (permite atribuir e desatribuir explicitamente).
+  if (b.funcionario_id !== undefined) {
+    db.prepare("UPDATE projeto_etapas SET funcionario_id=? WHERE id=?").run(b.funcionario_id || null, req.params.eid);
+  }
   // Se for a última etapa (Pós-entrega) concluída, sugere garantia/revisão
   if (b.concluida && etapa.numero === 10) {
     const proj = db.prepare("SELECT * FROM projetos WHERE id = ?").get(etapa.projeto_id);

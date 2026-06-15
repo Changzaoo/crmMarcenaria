@@ -3,12 +3,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { moeda, data } from "../lib/format";
 import { Orcamento, Empresa, Negocio } from "../types";
+import { usePolling } from "../lib/usePolling";
 import { PageHeader, Card, EmptyState, Modal, Field, Input, Select, Badge, useUI, Spinner } from "../components/ui";
 
 const statusTone: Record<string, any> = { rascunho: "default", enviado: "blue", aprovado: "green", recusado: "red" };
 
 export default function Orcamentos() {
-  const { toast } = useUI();
+  const { toast, confirm } = useUI();
   const nav = useNavigate();
   const [lista, setLista] = useState<Orcamento[] | null>(null);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
@@ -21,11 +22,18 @@ export default function Orcamentos() {
     api.get<Empresa[]>("/empresas").then(setEmpresas);
     api.get<Negocio[]>("/negocios").then(setNegocios);
   }, []);
+  usePolling(() => { if (!novo) carregar(); }, 15000);
 
   const criar = async () => {
     if (!novo?.titulo) return toast("Informe um título.", "err");
     try { const o = await api.post<Orcamento>("/orcamentos", novo); setNovo(null); nav(`/orcamentos/${o.id}`); }
     catch (e: any) { toast(e.message, "err"); }
+  };
+
+  const excluir = async (o: Orcamento) => {
+    if (!(await confirm(`Excluir o orçamento "${o.titulo}" v${o.versao}? Esta ação não pode ser desfeita.`))) return;
+    try { await api.del(`/orcamentos/${o.id}`); carregar(); toast("Orçamento excluído."); }
+    catch (e: unknown) { toast(e instanceof Error ? e.message : "Falha ao excluir.", "err"); }
   };
 
   if (!lista) return <Spinner />;
@@ -42,7 +50,7 @@ export default function Orcamentos() {
           <table className="w-full text-sm">
             <thead className="text-left text-muted text-xs border-b border-white/5">
               <tr><th className="px-4 py-3">Título</th><th className="px-4 py-3">Cliente</th><th className="px-4 py-3">Versão</th>
-                <th className="px-4 py-3">Status</th><th className="px-4 py-3">Criado</th></tr>
+                <th className="px-4 py-3">Status</th><th className="px-4 py-3">Criado</th><th className="px-4 py-3"></th></tr>
             </thead>
             <tbody>
               {lista.map((o) => (
@@ -52,6 +60,9 @@ export default function Orcamentos() {
                   <td className="px-4 py-3">v{o.versao}</td>
                   <td className="px-4 py-3"><Badge tone={statusTone[o.status]}>{o.status}</Badge></td>
                   <td className="px-4 py-3 text-muted">{data(o.criado_em)}</td>
+                  <td className="px-4 py-3 text-right">
+                    <button className="text-muted hover:text-red-300" onClick={(e) => { e.stopPropagation(); excluir(o); }}>Excluir</button>
+                  </td>
                 </tr>
               ))}
             </tbody>
