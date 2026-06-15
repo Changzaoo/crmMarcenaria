@@ -21,6 +21,9 @@ export default {
         card: "0 10px 40px -12px rgba(0,0,0,0.6)",
         glow: "0 0 32px -8px rgba(216,185,120,0.35)",
       },
+      letterSpacing: {
+        widest2: "0.25em",
+      },
     },
   },
   plugins: [],

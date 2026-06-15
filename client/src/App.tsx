@@ -22,7 +22,8 @@ import PosVenda from "./pages/PosVenda";
 import Configuracoes from "./pages/Configuracoes";
 
 // Estúdio 3D — carregado sob demanda (three.js fica fora do bundle inicial).
-const Budget3DPage = lazy(() => import("./features/orcamento3d/Budget3DPage"));
+// Editor portado do site público (visual idêntico, mesmo catálogo de móveis).
+const Studio3DRoute = lazy(() => import("./features/estudio3d/Studio3DRoute"));
 const ArchitectSupportPage = lazy(() => import("./features/orcamento3d/ArchitectSupportPage"));
 
 const Loader = () => (
@@ -36,11 +37,11 @@ export default function App() {
         {/* Área pública do cliente (sem login) */}
         <Route
           path="/orcamento-3d"
-          element={<Suspense fallback={<Loader />}><Budget3DPage /></Suspense>}
+          element={<Suspense fallback={<Loader />}><Studio3DRoute modo="publico" /></Suspense>}
         />
         <Route
           path="/orcamento-3d/:projetoId"
-          element={<Suspense fallback={<Loader />}><Budget3DPage /></Suspense>}
+          element={<Suspense fallback={<Loader />}><Studio3DRoute modo="publico" /></Suspense>}
         />
         {/* Aplicação autenticada (CRM/operação) */}
         <Route path="/*" element={<AuthedApp />} />
@@ -74,8 +75,8 @@ function AuthedApp() {
                 <Route path="/config" element={<Configuracoes />} />
                 {/* Suporte 3D / Arquiteto */}
                 <Route path="/suporte-3d" element={<ArchitectSupportPage />} />
-                <Route path="/suporte-3d/ver/:projetoId" element={<Budget3DPage role="arquiteto" readOnly />} />
-                <Route path="/suporte-3d/sessao/:projetoId" element={<Budget3DPage role="arquiteto" />} />
+                <Route path="/suporte-3d/ver/:projetoId" element={<Studio3DRoute modo="ver" />} />
+                <Route path="/suporte-3d/sessao/:projetoId" element={<Studio3DRoute modo="arquiteto" />} />
               </Routes>
             </Suspense>
           </Layout>
