@@ -1,9 +1,12 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
-import { ArrowLeft, FileText, HelpCircle, Keyboard, Layers, PhoneCall, Save, Sofa, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, FileText, HelpCircle, Keyboard, Layers, MessageSquare, PhoneCall, Save, Sofa, SlidersHorizontal } from "lucide-react";
 import { useUI } from "../../components/ui";
 import { useAuth } from "../../auth/AuthContext";
 import { StudioProvider, useStudio } from "./store";
-import type { Project3DDoc, Role, SessionState } from "./types";
+import type { ChatMessage, Project3DDoc, Role, SessionState } from "./types";
+import VoiceChat from "./ui/VoiceChat";
+import ChatPanel from "./ui/ChatPanel";
+import { initVoice, disposeVoice } from "./voice";
 import { GuidedTour, toursDisabled, setToursDisabled } from "../../components/Tutorial";
 import type { TourStep } from "../../components/Tutorial";
 import { buildStudioSteps } from "./studioTourSteps";
@@ -74,6 +77,8 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
   const [libOpen, setLibOpen] = useState(false);
   const [propsOpen, setPropsOpen] = useState(false);
   const [mostrarAtalhos, setMostrarAtalhos] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
 
   // Detecção de dispositivo: no mobile usamos joysticks de toque e layout adaptado.
   const { isMobile, orientation } = useDeviceInfo();
@@ -138,6 +143,7 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
           dlog("REALTIME", "Doc remoto aplicado na sessão do arquiteto");
         }
       },
+      onChat: (m) => setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m])),
     });
     collab.start(localDocRef.current);
     collabRef.current = collab;
@@ -149,6 +155,27 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projetoId, role]);
+
+  // ---- Voz (WebRTC) na mesma sala do site ----
+  useEffect(() => {
+    initVoice(projetoId);
+    return () => disposeVoice();
+  }, [projetoId]);
+
+  const enviarChat = useCallback(
+    (text: string) => {
+      const msg: ChatMessage = {
+        id: `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+        author: role,
+        authorName: role === "arquiteto" ? nomeArquiteto : clienteNome,
+        text,
+        at: new Date().toISOString(),
+      };
+      setMessages((prev) => [...prev, msg]);
+      collabRef.current?.pushChat(msg);
+    },
+    [role, nomeArquiteto, clienteNome]
+  );
 
   // ---- Espelha o andar ativo na presença (avatar no andar certo) ----
   useEffect(() => {
@@ -283,6 +310,20 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
 
         <div data-tour="studio-camera" className="ml-auto hidden md:block"><CameraModeSelector /></div>
 
+        <VoiceChat />
+        <button
+          onClick={() => setChatOpen((v) => !v)}
+          className={`btn-ghost px-2.5 py-2 text-sm ${chatOpen ? "text-champagne" : ""}`}
+          title="Chat por texto"
+        >
+          <MessageSquare size={15} />
+          {messages.length > 0 && !chatOpen && (
+            <span className="ml-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-champagne px-1 text-[10px] text-background">
+              {messages.length}
+            </span>
+          )}
+        </button>
+
         <button data-tour="studio-save" onClick={() => void persistir(localDocRef.current)} className="btn-ghost px-3 py-2 text-sm" title="Salvar">
           <Save size={15} /> <span className="hidden lg:inline">{salvo ? "Salvo" : "Salvar"}</span>
         </button>
@@ -379,6 +420,19 @@ function StudioInner({ projetoId, role, clienteNome, onExit, readOnly }: ShellPr
             />
           </div>
         </aside>
+
+        {/* Chat por texto (flutuante) */}
+        {chatOpen && (
+          <div className="absolute bottom-4 right-4 z-30 flex h-96 w-80 max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border border-white/10 bg-surface/95 shadow-card backdrop-blur">
+            <div className="flex items-center justify-between border-b border-white/5 px-3 py-2">
+              <span className="font-display text-sm">Chat</span>
+              <button onClick={() => setChatOpen(false)} className="text-muted hover:text-text">✕</button>
+            </div>
+            <div className="min-h-0 flex-1">
+              <ChatPanel messages={messages} author={role} onSend={enviarChat} />
+            </div>
+          </div>
+        )}
       </div>
 
       {mostrarResumo && (

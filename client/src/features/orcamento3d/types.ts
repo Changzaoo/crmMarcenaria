@@ -64,6 +64,14 @@ export interface Project3DDoc {
   projectName: string;
 }
 
+export interface ChatMessage {
+  id: string;
+  author: Role;
+  authorName: string;
+  text: string;
+  at: string;
+}
+
 export interface Peer {
   peerId: string;
   role: Role;

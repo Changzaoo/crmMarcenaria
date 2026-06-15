@@ -18,7 +18,7 @@
    (start/stop/pushDoc/updateSelf + onState) para minimizar mudanças
    no StudioShell.
    ============================================================ */
-import type { Project3DDoc, Role, SessionState, Peer } from "../types";
+import type { Project3DDoc, Role, SessionState, Peer, ChatMessage } from "../types";
 import { connectNet, netConnected, publish, subscribe } from "./realtimeNet";
 
 export const myPeerId =
@@ -38,6 +38,7 @@ type OutMsg =
   | { type: "presence"; presence: Presence }
   | { type: "syncdoc"; doc: Project3DDoc; from: string; ts: number }
   | { type: "syncdoc-request"; from: string; ts: number }
+  | { type: "chat"; message: ChatMessage }
   | { type: "leave"; id: string };
 
 export interface WsCollabOptions {
@@ -47,6 +48,7 @@ export interface WsCollabOptions {
   color?: string;
   onState: (state: SessionState) => void;
   onRemoteDoc?: (doc: Project3DDoc) => void;
+  onChat?: (message: ChatMessage) => void;
   intervaloMs?: number;
 }
 
@@ -127,6 +129,10 @@ export class WsCollaborationSession {
         if (w.from !== myPeerId && this.doc) {
           this.send({ type: "syncdoc", doc: this.doc, from: myPeerId, ts: Date.now() });
         }
+        break;
+      }
+      case "chat": {
+        if (w.message) this.opts.onChat?.(w.message as ChatMessage);
         break;
       }
       case "leave": {
@@ -215,6 +221,11 @@ export class WsCollaborationSession {
   }
   setMoving(moving: boolean) {
     this.self.moving = moving;
+  }
+
+  /** Envia uma mensagem de chat para a sala (mesmo formato do site). */
+  pushChat(message: ChatMessage) {
+    this.send({ type: "chat", message });
   }
 
   /** Publica o documento (schema canônico Project3DDoc) para a sala. */
