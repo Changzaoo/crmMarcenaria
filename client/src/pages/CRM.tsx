@@ -156,7 +156,7 @@ export default function CRM() {
         } />
 
       <DragDropContext onDragEnd={onDragEnd}>
-        <div data-tour="crm-board" className="flex gap-3 overflow-x-auto flex-1 min-h-0 items-start pb-1">
+        <div data-tour="crm-board" className="flex gap-3 overflow-x-auto flex-1 min-h-0 pb-1">
           {ABERTAS.map((etapa) => {
             const cards = porEtapa(etapa);
             const total = cards.reduce((s, n) => s + n.valor_estimado, 0);
@@ -173,7 +173,7 @@ export default function CRM() {
                       <span className="text-[11px] text-muted">{moedaCurta(total)}</span>
                     </div>
                     <div ref={prov.innerRef} {...prov.droppableProps}
-                      className={`space-y-2 rounded-xl p-2 min-h-[120px] max-h-[30rem] overflow-y-auto transition ${snap.isDraggingOver ? "bg-champagne/5 ring-1 ring-champagne/20" : "bg-surface/40"}`}>
+                      className={`space-y-2 rounded-xl p-2 flex-1 min-h-0 max-h-[30rem] overflow-y-auto transition ${snap.isDraggingOver ? "bg-champagne/5 ring-1 ring-champagne/20" : "bg-surface/40"}`}>
                       {cards.map((n, i) => (
                         <Draggable draggableId={String(n.id)} index={i} key={n.id}>
                           {(p, s) => (
