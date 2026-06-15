@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
+import { FileText, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { api } from "../lib/api";
 import { moeda, moedaCurta, data, vencido, whatsappLink, aplicarTemplate } from "../lib/format";
@@ -7,6 +8,14 @@ import { Negocio, NegocioDetalhe, Dados3D, Empresa, EmpresaDetalhe, TemplateWhat
 import { PageHeader, Card, Modal, Field, Input, Select, Textarea, Badge, useUI, Spinner } from "../components/ui";
 
 const ABERTAS = ETAPAS_CRM.filter((e) => e !== "Perdido");
+
+function parse3D(neg: NegocioDetalhe): Dados3D | null {
+  try {
+    return neg.dados_3d ? (JSON.parse(neg.dados_3d) as Dados3D) : null;
+  } catch {
+    return null;
+  }
+}
 
 function apiErrorMessage(error: unknown) {
   return error instanceof Error && error.message ? error.message : "Falha ao carregar dados.";
@@ -323,6 +332,33 @@ function NegocioPainel({ id, onClose }: { id: number; onClose: () => void }) {
   const contato = empDet?.contatos.find((c) => c.id === neg.contato_id) || empDet?.contatos.find((c) => c.principal) || empDet?.contatos[0];
   const waVars = { contato: contato?.nome || "", empresa: neg.empresa_nome || neg.empresa_razao || "" };
 
+  // Dados do Estúdio 3D para alimentar o orçamento com os móveis montados.
+  const d3d = parse3D(neg);
+  const moveis3d = d3d?.moveis || [];
+  const tem3D = !!(neg.projeto_3d_id || neg.dados_3d) && moveis3d.length > 0;
+
+  // Cria (ou reaproveita) o orçamento do negócio, importa os móveis do 3D como
+  // itens e abre a página do orçamento já com eles.
+  const adicionarItens3D = async () => {
+    try {
+      let orcId = neg.orcamentos[0]?.id;
+      if (!orcId) {
+        const orc = await api.post<{ id: number }>("/orcamentos", {
+          negocio_id: neg.id, empresa_id: neg.empresa_id, titulo: neg.titulo,
+        });
+        orcId = orc.id;
+      }
+      await api.post(`/orcamentos/${orcId}/importar-3d`, {
+        moveis: moveis3d,
+        ambiente: d3d?.tipo_projeto || "Ambiente 3D",
+      });
+      toast("Itens do 3D adicionados ao orçamento.");
+      nav(`/orcamentos/${orcId}`);
+    } catch (e: unknown) {
+      toast(e instanceof Error ? e.message : "Não foi possível adicionar ao orçamento.", "err");
+    }
+  };
+
   return (
     <Modal open onClose={onClose} title={neg.titulo} wide>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -341,7 +377,7 @@ function NegocioPainel({ id, onClose }: { id: number; onClose: () => void }) {
             <Info label="Responsável" value={neg.responsavel} />
           </div>
 
-          {(neg.projeto_3d_id || neg.dados_3d) && <Resumo3D neg={neg} />}
+          {(neg.projeto_3d_id || neg.dados_3d) && <Resumo3D neg={neg} onAddOrcamento={tem3D ? adicionarItens3D : undefined} />}
 
           {contato?.telefone && (
             <div className="pt-2">
@@ -357,18 +393,36 @@ function NegocioPainel({ id, onClose }: { id: number; onClose: () => void }) {
             </div>
           )}
 
-          <div className="flex gap-2 pt-3">
-            <button className="btn-ghost flex-1" onClick={criarOrcamento}>Criar orçamento</button>
-          </div>
+          {/* Negócios do 3D criam o orçamento pelo card "Adicionar ao orçamento". */}
+          {!tem3D && (
+            <div className="flex gap-2 pt-3">
+              <button className="btn-ghost flex-1" onClick={criarOrcamento}>Criar orçamento</button>
+            </div>
+          )}
 
           {neg.orcamentos.length > 0 && (
             <div className="pt-2">
               <div className="label">Orçamentos</div>
-              {neg.orcamentos.map((o) => (
-                <button key={o.id} onClick={() => nav(`/orcamentos/${o.id}`)} className="block text-sm text-champagne hover:underline">
-                  {o.titulo} v{o.versao} · {o.status}
-                </button>
-              ))}
+              <div className="space-y-2">
+                {neg.orcamentos.map((o) => (
+                  <button
+                    key={o.id}
+                    onClick={() => nav(`/orcamentos/${o.id}`)}
+                    className="w-full flex items-center justify-between gap-3 rounded-lg border border-white/10 bg-surfaceSoft px-3 py-2.5 text-left transition hover:border-champagne/40 hover:bg-surfaceSoft/70"
+                  >
+                    <span className="flex items-center gap-2 min-w-0">
+                      <FileText size={15} className="shrink-0 text-champagne" />
+                      <span className="min-w-0">
+                        <span className="block text-sm font-medium truncate">
+                          {o.titulo} <span className="font-normal text-muted">v{o.versao}</span>
+                        </span>
+                        <span className="block text-[11px] text-muted">{o.status}</span>
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-xs text-champagne">Abrir →</span>
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -415,7 +469,7 @@ function Info({ label, value }: { label: string; value?: string | null }) {
 }
 
 // ---------- Resumo do Orçamento 3D dentro do negócio ----------
-function Resumo3D({ neg }: { neg: NegocioDetalhe }) {
+function Resumo3D({ neg, onAddOrcamento }: { neg: NegocioDetalhe; onAddOrcamento?: () => void }) {
   const nav = useNavigate();
   let d: Dados3D | null = null;
   try {
@@ -498,10 +552,16 @@ function Resumo3D({ neg }: { neg: NegocioDetalhe }) {
         </div>
       )}
 
-      {projetoId && moveis.length > 0 && (
+      {moveis.length > 0 && (projetoId || onAddOrcamento) && (
         <div className="flex gap-2 pt-1">
-          <button className="btn-ghost flex-1" onClick={() => nav(`/suporte-3d/ver/${projetoId}`)}>Ver ambiente 3D</button>
-          <button className="btn-primary flex-1" onClick={() => nav(`/suporte-3d/sessao/${projetoId}`)}>Entrar na sessão</button>
+          {projetoId && (
+            <button className="btn-ghost flex-1" onClick={() => nav(`/suporte-3d/ver/${projetoId}`)}>Ver ambiente 3D</button>
+          )}
+          {onAddOrcamento && (
+            <button className="btn-primary flex-1" onClick={onAddOrcamento}>
+              <Plus size={14} /> Adicionar ao orçamento
+            </button>
+          )}
         </div>
       )}
     </div>

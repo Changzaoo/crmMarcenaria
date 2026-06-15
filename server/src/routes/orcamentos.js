@@ -96,6 +96,36 @@ r.delete("/:id", (req, res) => {
   res.json({ ok: true });
 });
 
+// Importa os móveis do Estúdio 3D para dentro de um orçamento, criando um novo
+// ambiente com um item por móvel (e uma linha de material com o preço estimado).
+r.post("/:id/importar-3d", (req, res) => {
+  const id = req.params.id;
+  const orc = db.prepare("SELECT * FROM orcamentos WHERE id = ?").get(id);
+  if (!orc) return res.status(404).json({ erro: "Orçamento não encontrado." });
+  const moveis = Array.isArray(req.body?.moveis) ? req.body.moveis : [];
+  if (moveis.length === 0) return res.status(400).json({ erro: "Nenhum móvel 3D para importar." });
+  const nomeAmb = String(req.body?.ambiente || "Ambiente 3D").slice(0, 80);
+
+  db.transaction(() => {
+    const ordemAmb = db.prepare("SELECT COALESCE(MAX(ordem),0)+1 o FROM orcamento_ambientes WHERE orcamento_id = ?").get(id).o;
+    const aid = db
+      .prepare("INSERT INTO orcamento_ambientes (orcamento_id, nome, ordem) VALUES (?,?,?)")
+      .run(id, nomeAmb, ordemAmb).lastInsertRowid;
+    moveis.forEach((m, i) => {
+      const dims = [m.largura_cm, m.altura_cm, m.profundidade_cm].filter((v) => v != null && v !== "").join("×");
+      const desc = dims ? `${m.nome || "Móvel"} (${dims} cm)` : m.nome || "Móvel";
+      const iid = db
+        .prepare("INSERT INTO orcamento_itens (ambiente_id, descricao, quantidade, mao_de_obra, ordem) VALUES (?,?,?,?,?)")
+        .run(aid, desc, 1, 0, i + 1).lastInsertRowid;
+      db.prepare(
+        "INSERT INTO orcamento_item_materiais (item_id, material_id, nome, unidade, preco_custo, quantidade, aplica_perda) VALUES (?,?,?,?,?,?,?)"
+      ).run(iid, null, m.material || m.categoria || "Móvel 3D", "un", Number(m.preco) || 0, 1, 0);
+    });
+  })();
+
+  res.json(carregarFull(id));
+});
+
 // ----- Ambientes -----
 r.post("/:id/ambientes", (req, res) => {
   const ordem = db.prepare("SELECT COALESCE(MAX(ordem),0)+1 o FROM orcamento_ambientes WHERE orcamento_id = ?").get(req.params.id).o;
