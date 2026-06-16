@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import Portal from "./Portal";
 import { Btn, Field } from "./studioUi";
@@ -27,6 +27,19 @@ import { toast } from "./toast";
 const validPhone = (v: string) => /\d{8,}/.test(v.replace(/\D/g, ""));
 const validEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
+function MenuItem({ children, onClick, danger }: { children: ReactNode; onClick: () => void; danger?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition hover:bg-champagne/10 ${
+        danger ? "text-rose-300 hover:bg-rose-500/10" : "text-text"
+      }`}
+    >
+      {children}
+    </button>
+  );
+}
+
 type Dialog = null | "save" | "quote" | "export";
 
 export default function ProjectActions({ variant = "bar" }: { variant?: "bar" | "mobile" }) {
@@ -37,9 +50,11 @@ export default function ProjectActions({ variant = "bar" }: { variant?: "bar" | 
   const canUndo = useOrc3d((s) => s.past.length > 0);
   const canRedo = useOrc3d((s) => s.future.length > 0);
   const assisted = useOrc3d((s) => s.assistedByArchitect);
+  const role = useOrc3d((s) => s.role);
 
   const [dialog, setDialog] = useState<Dialog>(null);
   const [sheet, setSheet] = useState(false);
+  const [more, setMore] = useState(false);
   const [busy, setBusy] = useState<null | "save" | "quote" | "architect">(null);
 
   const persist = (status?: Parameters<typeof actions.setStatus>[0]) => {
@@ -139,16 +154,26 @@ export default function ProjectActions({ variant = "bar" }: { variant?: "bar" | 
   const contactOk = !!client.name && (validPhone(client.phone) || validEmail(client.email));
 
   const after = () => setSheet(false);
+  const startScratch = () => {
+    if (confirm("Começar do zero? Os móveis atuais serão removidos.")) {
+      actions.startFromScratch();
+      toast("Novo projeto iniciado.", "info");
+    }
+  };
+
+  // Mobile / action-sheet: lista completa (cabe no painel deslizante).
   const ButtonsRow = ({ size = "sm" as "sm" | "md" }) => (
     <>
       <Btn size={size} onClick={() => { actions.undo(); }} disabled={!canUndo} title="Desfazer (Ctrl+Z)">↺ Desfazer</Btn>
       <Btn size={size} onClick={() => { actions.redo(); }} disabled={!canRedo} title="Refazer (Ctrl+Y)">↻ Refazer</Btn>
       <Btn size={size} onClick={() => { capture(); after(); }} title="Capturar visão atual">⬡ Capturar</Btn>
       <Btn size={size} onClick={() => { setDialog("export"); after(); }}>Exportar</Btn>
-      <Btn size={size} onClick={() => { if (confirm("Começar do zero? Os móveis atuais serão removidos.")) { actions.startFromScratch(); toast("Novo projeto iniciado.", "info"); } after(); }}>Começar do zero</Btn>
-      <Btn size={size} onClick={() => { void callArchitect(); after(); }} active={assisted} disabled={busy !== null}>
-        {busy === "architect" ? "Chamando..." : "Chamar arquiteto"}
-      </Btn>
+      <Btn size={size} onClick={() => { startScratch(); after(); }}>Começar do zero</Btn>
+      {role === "cliente" && (
+        <Btn size={size} onClick={() => { void callArchitect(); after(); }} active={assisted} disabled={busy !== null}>
+          {busy === "architect" ? "Chamando..." : "Chamar arquiteto"}
+        </Btn>
+      )}
       <Btn size={size} variant="ghost" onClick={() => { setDialog("save"); after(); }} disabled={busy !== null}>Salvar</Btn>
       <Btn size={size} variant="primary" onClick={() => { setDialog("quote"); after(); }} disabled={busy !== null}>Enviar para análise</Btn>
       <Btn size={size} onClick={closeStudio} title="Voltar para o site">✕ Sair</Btn>
@@ -158,8 +183,34 @@ export default function ProjectActions({ variant = "bar" }: { variant?: "bar" | 
   return (
     <>
       {variant === "bar" ? (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <ButtonsRow />
+        /* Barra do topo enxuta: só o essencial visível; o resto vai pro menu "⋯". */
+        <div className="flex items-center gap-1.5">
+          <Btn size="sm" onClick={() => actions.undo()} disabled={!canUndo} title="Desfazer (Ctrl+Z)">↺</Btn>
+          <Btn size="sm" onClick={() => actions.redo()} disabled={!canRedo} title="Refazer (Ctrl+Y)">↻</Btn>
+          {role === "cliente" && (
+            <Btn size="sm" onClick={() => void callArchitect()} active={assisted} disabled={busy !== null} title="Chamar um arquiteto para a sessão ao vivo">
+              {busy === "architect" ? "Chamando…" : "Chamar arquiteto"}
+            </Btn>
+          )}
+          <Btn size="sm" variant="ghost" onClick={() => setDialog("save")} disabled={busy !== null}>Salvar</Btn>
+          <Btn size="sm" variant="primary" onClick={() => setDialog("quote")} disabled={busy !== null}>Enviar</Btn>
+          <div className="relative">
+            <Btn size="sm" onClick={() => setMore((v) => !v)} active={more} title="Mais ações">⋯</Btn>
+            {more && (
+              <>
+                <div className="fixed inset-0 z-[59]" onClick={() => setMore(false)} />
+                <div className="absolute right-0 top-full z-[60] mt-1 w-56 overflow-hidden rounded-xl border border-champagne/20 bg-surface p-1 shadow-card">
+                  <MenuItem onClick={() => { capture(); setMore(false); }}>⬡ Capturar visão</MenuItem>
+                  <MenuItem onClick={() => { setDialog("export"); setMore(false); }}>⬇ Exportar resumo</MenuItem>
+                  <MenuItem onClick={() => { startScratch(); setMore(false); }}>↻ Começar do zero</MenuItem>
+                  <div className="my-1 border-t border-champagne/10" />
+                  <MenuItem danger onClick={() => { closeStudio(); setMore(false); }}>
+                    {role === "arquiteto" ? "✕ Sair da sessão" : "✕ Sair"}
+                  </MenuItem>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       ) : (
         <button

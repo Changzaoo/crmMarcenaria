@@ -17,7 +17,6 @@ import ToastHost from "./ToastHost";
 import CollabBridge from "./CollabBridge";
 import ArchitectPresence from "./ArchitectPresence";
 import VoiceChat from "./VoiceChat";
-import HelpOverlay from "./HelpOverlay";
 import ViewportHud from "./ViewportHud";
 import Tutorial, { openTutorial } from "./Tutorial";
 import NetStatus from "./NetStatus";
@@ -230,7 +229,6 @@ export default function Orcamento3DApp() {
                 </Btn>
               )}
               <Btn size="sm" onClick={openTutorial} title="Abrir o tutorial do editor 3D">Tutorial</Btn>
-              <HelpOverlay />
               <Btn size="sm" onClick={toggleFullscreen} title="Tela cheia">⤢</Btn>
               <div className="hidden lg:block">
                 <ProjectActions />
