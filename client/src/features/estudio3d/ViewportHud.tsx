@@ -34,6 +34,18 @@ export default function ViewportHud({ mobile }: { mobile: boolean }) {
         </div>
       )}
 
+      {/* dica: pegar/soltar com a mira + apagar */}
+      {showCrosshair && (
+        <div className="pointer-events-none absolute inset-x-0 bottom-14 z-[15] flex justify-center px-4">
+          <div className="flex items-center gap-2 rounded-full border border-white/15 bg-[rgba(12,10,8,0.7)] px-4 py-2 text-xs text-muted backdrop-blur-md">
+            <span aria-hidden>🎯</span>
+            <span>
+              Mire num móvel e <b className="text-text">clique</b> (ou <b className="text-text">E</b>) para pegar e soltar · <b className="text-text">Del</b> apaga
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* modo cursor ativo em 1ª/3ª pessoa: ponteiro liberado p/ editar */}
       {walk && cursorMode && (
         <div className="pointer-events-none absolute inset-x-0 bottom-24 z-[15] flex justify-center px-4">

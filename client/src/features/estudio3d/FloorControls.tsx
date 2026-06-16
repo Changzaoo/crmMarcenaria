@@ -98,6 +98,43 @@ export default function FloorControls() {
         {WALL_LABEL[wallMode]}
       </button>
 
+      {/* Área da planta — largura × profundidade (m), ajustável ao vivo.
+          Também dá pra arrastar as alças douradas das paredes na cena. */}
+      <div className="rounded-lg border border-champagne/15 px-2 py-1.5">
+        <div className="mb-1 flex items-center justify-between">
+          <span className="text-[10px] uppercase tracking-wide text-muted">Área</span>
+          <span className="font-semibold text-champagne">
+            {(env.width / 100).toFixed(1)}×{(env.depth / 100).toFixed(1)}m
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-1">
+          <label className="flex flex-col text-[9px] uppercase tracking-wide text-muted">
+            Larg.
+            <input
+              type="number"
+              min={1.5}
+              max={30}
+              step={0.5}
+              value={+(env.width / 100).toFixed(1)}
+              onChange={(e) => actions.resizeRoom(Number(e.target.value) * 100, env.depth, true)}
+              className="mt-0.5 w-full rounded bg-black/30 px-1 py-1 text-xs text-text outline-none focus:ring-1 focus:ring-champagne/50"
+            />
+          </label>
+          <label className="flex flex-col text-[9px] uppercase tracking-wide text-muted">
+            Prof.
+            <input
+              type="number"
+              min={1.5}
+              max={30}
+              step={0.5}
+              value={+(env.depth / 100).toFixed(1)}
+              onChange={(e) => actions.resizeRoom(env.width, Number(e.target.value) * 100, true)}
+              className="mt-0.5 w-full rounded bg-black/30 px-1 py-1 text-xs text-text outline-none focus:ring-1 focus:ring-champagne/50"
+            />
+          </label>
+        </div>
+      </div>
+
       {/* Altura das paredes (pé-direito) — ajustável ao vivo */}
       <div className="rounded-lg border border-champagne/15 px-2 py-1.5">
         <div className="mb-1 flex items-center justify-between">

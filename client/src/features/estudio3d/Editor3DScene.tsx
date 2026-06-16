@@ -217,6 +217,64 @@ function Mezzanine({ w, d, y }: { w: number; d: number; y: number }) {
   );
 }
 
+/* ---------- alças de redimensionamento da planta (estilo The Sims) ---------- */
+function ResizeHandles({
+  env,
+  baseY,
+  onDownX,
+  onDownZ,
+}: {
+  env: EnvironmentConfig;
+  baseY: number;
+  onDownX: (e: ThreeEvent<PointerEvent>) => void;
+  onDownZ: (e: ThreeEvent<PointerEvent>) => void;
+}) {
+  const halfW = env.width / 200;
+  const halfD = env.depth / 200;
+  const Handle = ({
+    pos,
+    onDown,
+    rot,
+  }: {
+    pos: [number, number, number];
+    onDown: (e: ThreeEvent<PointerEvent>) => void;
+    rot: number;
+  }) => (
+    <group position={pos} rotation={[0, rot, 0]}>
+      <mesh
+        onPointerDown={onDown}
+        onPointerOver={(e) => {
+          e.stopPropagation();
+          document.body.style.cursor = "grab";
+        }}
+        onPointerOut={() => {
+          document.body.style.cursor = "";
+        }}
+      >
+        <boxGeometry args={[0.55, 0.16, 0.55]} />
+        <meshStandardMaterial color="#D8B978" emissive="#3a2c1c" emissiveIntensity={0.5} roughness={0.35} metalness={0.6} />
+      </mesh>
+      {/* setas de dica (◀ ▶) indicando que estica */}
+      <mesh position={[0.42, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
+        <coneGeometry args={[0.12, 0.22, 4]} />
+        <meshStandardMaterial color="#D8B978" roughness={0.4} metalness={0.5} />
+      </mesh>
+      <mesh position={[-0.42, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <coneGeometry args={[0.12, 0.22, 4]} />
+        <meshStandardMaterial color="#D8B978" roughness={0.4} metalness={0.5} />
+      </mesh>
+    </group>
+  );
+  return (
+    <group position={[0, baseY + 0.13, 0]}>
+      <Handle pos={[halfW, 0, 0]} onDown={onDownX} rot={0} />
+      <Handle pos={[-halfW, 0, 0]} onDown={onDownX} rot={0} />
+      <Handle pos={[0, 0, halfD]} onDown={onDownZ} rot={Math.PI / 2} />
+      <Handle pos={[0, 0, -halfD]} onDown={onDownZ} rot={Math.PI / 2} />
+    </group>
+  );
+}
+
 function floorVisible(floor: number, activeFloor: number, mode: FloorVisibility) {
   if (mode === "all") return true;
   if (mode === "current") return floor === activeFloor;
@@ -538,6 +596,35 @@ function CameraRig({
   );
 }
 
+/* ---------- carregar móvel com a mira (1ª/3ª pessoa) ----------
+   Enquanto há um móvel "na mão", ele acompanha o centro da tela (mira),
+   posicionado à frente da câmera no nível do piso. Atualiza ~25x/s. */
+function CarryRig({ uid, env }: { uid: string | null; env: EnvironmentConfig }) {
+  const { camera } = useThree();
+  const dir = useRef(new THREE.Vector3());
+  const acc = useRef(0);
+  useFrame((_, dt) => {
+    if (!uid) return;
+    acc.current += dt;
+    if (acc.current < 0.04) return;
+    acc.current = 0;
+    const f = orc3dStore.getState().doc.furniture.find((x) => x.uid === uid);
+    if (!f) return;
+    camera.getWorldDirection(dir.current);
+    dir.current.y = 0;
+    if (dir.current.lengthSq() < 1e-4) return;
+    dir.current.normalize();
+    const dist = 1.5 + f.depth / 200;
+    const halfW = Math.max(0, env.width / 200 - f.width / 200);
+    const halfD = Math.max(0, env.depth / 200 - f.depth / 200);
+    const x = Math.max(-halfW, Math.min(halfW, camera.position.x + dir.current.x * dist));
+    const z = Math.max(-halfD, Math.min(halfD, camera.position.z + dir.current.z * dist));
+    if (Math.abs(x - f.position[0]) < 0.004 && Math.abs(z - f.position[2]) < 0.004) return;
+    actions.moveTo(uid, [x, f.position[1], z]);
+  });
+  return null;
+}
+
 /* ---------- teclado primeira pessoa (desktop) ---------- */
 function useFpKeyboard(active: boolean) {
   useEffect(() => {
@@ -602,7 +689,9 @@ function SceneContents({ mobile }: { mobile: boolean }) {
   const orbitRef = useRef<any>(null);
   const [draggingUid, setDraggingUid] = useState<string | null>(null);
   const [stairsDragging, setStairsDragging] = useState(false);
+  const [resizing, setResizing] = useState<null | "x" | "z">(null);
   const [stairsSelected, setStairsSelected] = useState(false);
+  const [carryUid, setCarryUid] = useState<string | null>(null);
   const dragBaseY = useRef(0);
   const floorHeight = env.height / 100;
   const activeFloorY = activeFloor * floorHeight;
@@ -667,6 +756,96 @@ function SceneContents({ mobile }: { mobile: boolean }) {
     return () => dom.removeEventListener("pointermove", onMove);
   }, [stairsDragging, camera, gl, activeFloorY]);
 
+  // Arraste das ALÇAS DE PLANTA — estica largura (x) ou profundidade (z)
+  // simetricamente a partir do centro. Raycast no plano do andar ativo.
+  useEffect(() => {
+    if (!resizing) return;
+    const dom = gl.domElement;
+    const onMove = (ev: PointerEvent) => {
+      const e2 = orc3dStore.getState().doc.environment;
+      const rect = dom.getBoundingClientRect();
+      ndc.current.set(
+        ((ev.clientX - rect.left) / rect.width) * 2 - 1,
+        -((ev.clientY - rect.top) / rect.height) * 2 + 1
+      );
+      dragRay.current.setFromCamera(ndc.current, camera);
+      dragPlane.current.set(new THREE.Vector3(0, 1, 0), -activeFloorY);
+      if (!dragRay.current.ray.intersectPlane(dragPlane.current, hitPt.current)) return;
+      if (resizing === "x") {
+        actions.resizeRoom(Math.abs(hitPt.current.x) * 2 * 100, e2.depth);
+      } else {
+        actions.resizeRoom(e2.width, Math.abs(hitPt.current.z) * 2 * 100);
+      }
+    };
+    dom.addEventListener("pointermove", onMove);
+    return () => dom.removeEventListener("pointermove", onMove);
+  }, [resizing, camera, gl, activeFloorY]);
+
+  // Pegar/soltar móvel com a MIRA em 1ª/3ª pessoa (sem precisar do modo cursor).
+  // Clique (ou tecla E/G) pega o móvel sob o centro da tela; clique de novo solta.
+  // Na 1ª pessoa desktop, o 1º clique só ativa o pointer lock — só pega depois.
+  useEffect(() => {
+    if (!walkMode || cursorMode) return;
+    const dom = gl.domElement;
+    const firstPerson = viewMode === "primeira" && !mobile;
+    const center = new THREE.Vector3();
+
+    const pick = (): string | null => {
+      const lista = orc3dStore
+        .getState()
+        .doc.furniture.filter((f) => (f.floor ?? 0) === activeFloor && !f.locked);
+      let best: string | null = null;
+      let bestD = 0.05; // raio² na tela (NDC) ~ 0,22
+      for (const f of lista) {
+        center.set(f.position[0], activeFloorY + f.position[1] + f.height / 200, f.position[2]);
+        center.project(camera);
+        if (center.z > 1) continue; // atrás da câmera
+        const d2 = center.x * center.x + center.y * center.y;
+        if (d2 < bestD) {
+          bestD = d2;
+          best = f.uid;
+        }
+      }
+      return best;
+    };
+
+    const toggle = () => {
+      if (carryUid) {
+        setCarryUid(null);
+        return;
+      }
+      const hit = pick();
+      if (hit) {
+        actions.select(hit);
+        actions.beginDrag();
+        setCarryUid(hit);
+      }
+    };
+
+    const onClick = () => {
+      if (firstPerson && !document.pointerLockElement) return; // 1º clique = trava o cursor
+      toggle();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      if (e.key === "e" || e.key === "E" || e.key === "g" || e.key === "G") toggle();
+      if (e.key === "Escape" && carryUid) setCarryUid(null);
+    };
+
+    dom.addEventListener("click", onClick);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      dom.removeEventListener("click", onClick);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [walkMode, cursorMode, carryUid, activeFloor, activeFloorY, camera, gl, viewMode, mobile]);
+
+  // larga o móvel carregado ao trocar de modo/andar
+  useEffect(() => {
+    setCarryUid(null);
+  }, [viewMode, activeFloor, cursorMode]);
+
   // móveis do andar ativo viram obstáculos de colisão para o avatar
   const obstacles = useMemo<Obstacle[]>(
     () =>
@@ -693,10 +872,27 @@ function SceneContents({ mobile }: { mobile: boolean }) {
         setStairsDragging(false);
         if (orbitRef.current) orbitRef.current.enabled = true;
       }
+      if (resizing) {
+        setResizing(null);
+        document.body.style.cursor = "";
+        if (orbitRef.current) orbitRef.current.enabled = true;
+      }
     };
     window.addEventListener("pointerup", up);
     return () => window.removeEventListener("pointerup", up);
-  }, [draggingUid, stairsDragging]);
+  }, [draggingUid, stairsDragging, resizing]);
+
+  const onResizeDown = (axis: "x" | "z") => (e: ThreeEvent<PointerEvent>) => {
+    e.stopPropagation();
+    actions.select(null);
+    setStairsSelected(false);
+    // em 1ª/3ª pessoa só com o ponteiro liberado (modo cursor)
+    if (walkMode && !cursorMode) return;
+    actions.beginDrag();
+    setResizing(axis);
+    document.body.style.cursor = "grabbing";
+    if (orbitRef.current) orbitRef.current.enabled = false;
+  };
 
   const onFurnitureDown = (f: PlacedFurniture) => (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation();
@@ -747,6 +943,7 @@ function SceneContents({ mobile }: { mobile: boolean }) {
       {/* Ambiente de render ÚNICO (fonte: shared3d) — idêntico no site e no CRM */}
       <SceneEnvironment maxDim={Math.max(env.width, env.depth) / 100} mobile={mobile} />
       <CameraRig mode={viewMode} env={env} mobile={mobile} activeFloor={activeFloor} role={role} name={role === "arquiteto" ? (architectName || "Arquiteto") : (clientName || "Cliente")} obstacles={obstacles} />
+      <CarryRig uid={carryUid} env={env} />
       <Capturer />
 
       <Room
@@ -761,6 +958,15 @@ function SceneContents({ mobile }: { mobile: boolean }) {
         onStairsDown={onStairsDown}
         stairsSelected={stairsSelected}
       />
+      {(viewMode === "isometrico" || viewMode === "topo") && (!walkMode || cursorMode) && (
+        <ResizeHandles
+          env={env}
+          baseY={activeFloorY}
+          onDownX={onResizeDown("x")}
+          onDownZ={onResizeDown("z")}
+        />
+      )}
+
       <PresenceAvatars
         floorHeight={floorHeight}
         roomW={env.width / 100}

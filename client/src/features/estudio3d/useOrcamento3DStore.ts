@@ -190,6 +190,32 @@ export const actions = {
     }, false);
   },
 
+  /** Redimensiona a planta (largura/profundidade em cm) ao vivo — estilo The
+      Sims, arrastando as paredes. Mantém os móveis dentro das novas paredes.
+      Sem histórico durante o arraste; chame beginDrag() antes para 1 entrada
+      de undo por gesto. */
+  resizeRoom(width: number, depth: number, history = false) {
+    const [loW, hiW] = ENV_LIMITS.width;
+    const [loD, hiD] = ENV_LIMITS.depth;
+    const w = Math.round(Math.max(loW, Math.min(hiW, width)));
+    const d = Math.round(Math.max(loD, Math.min(hiD, depth)));
+    commitDoc((doc) => {
+      doc.environment = { ...doc.environment, width: w, depth: d };
+      const halfW = w / 200;
+      const halfD = d / 200;
+      for (const f of doc.furniture) {
+        const fw = f.width / 200;
+        const fd = f.depth / 200;
+        const x = Math.max(-halfW + fw, Math.min(halfW - fw, f.position[0]));
+        const z = Math.max(-halfD + fd, Math.min(halfD - fd, f.position[2]));
+        f.position = [x, f.position[1], z];
+      }
+      // mantém a escada dentro da nova planta (se houver posição custom)
+      if (doc.environment.stairsX != null) doc.environment.stairsX = Math.max(-halfW, Math.min(halfW, doc.environment.stairsX));
+      if (doc.environment.stairsZ != null) doc.environment.stairsZ = Math.max(-halfD, Math.min(halfD, doc.environment.stairsZ));
+    }, history);
+  },
+
   enterEditor() {
     orc3dStore.setState({ phase: "editing" });
   },

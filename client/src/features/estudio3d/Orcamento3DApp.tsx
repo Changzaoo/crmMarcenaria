@@ -96,6 +96,13 @@ export default function Orcamento3DApp() {
         // Gira o móvel selecionado ±15° (Shift inverte) — funciona em qualquer modo.
         const sel = orc3dStore.getState().selectedUid;
         if (sel) actions.rotate(sel, e.shiftKey ? -Math.PI / 12 : Math.PI / 12);
+      } else if (e.key === "Delete" || e.key === "Backspace") {
+        // Del/Backspace apaga o móvel selecionado.
+        const sel = orc3dStore.getState().selectedUid;
+        if (sel) {
+          e.preventDefault();
+          actions.remove(sel);
+        }
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
         e.shiftKey ? actions.redo() : actions.undo();
