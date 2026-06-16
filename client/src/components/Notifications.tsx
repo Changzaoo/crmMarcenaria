@@ -8,13 +8,13 @@ import {
   type ReactNode,
 } from "react";
 import { useNavigate } from "react-router-dom";
-import { Bell, BellRing, PhoneCall, Check, Trash2, Info } from "lucide-react";
+import { Bell, BellRing, PhoneCall, Check, Trash2, Info, UserPlus } from "lucide-react";
 import { listarLeads } from "../features/orcamento3d/services/leadService";
 
 /* ------------------------------------------------------------------ */
 /*  Tipos + contexto                                                   */
 /* ------------------------------------------------------------------ */
-export type NotificationType = "arquiteto" | "info";
+export type NotificationType = "arquiteto" | "info" | "lead";
 
 export interface AppNotification {
   /** Chave de deduplicação (mesma chave nunca gera dois avisos). */
@@ -207,6 +207,7 @@ function tempoRelativo(ts: number): string {
 
 const ICONS: Record<NotificationType, typeof Bell> = {
   arquiteto: PhoneCall,
+  lead: UserPlus,
   info: Info,
 };
 
@@ -288,7 +289,7 @@ export function NotificationBell({ collapsed = false }: { collapsed?: boolean })
                     }`}
                     onClick={() => abrir(n)}
                   >
-                    <div className={`mt-0.5 w-8 h-8 shrink-0 rounded-lg grid place-items-center ${n.type === "arquiteto" ? "bg-amber-500/15 text-amber-300" : "bg-white/5 text-muted"}`}>
+                    <div className={`mt-0.5 w-8 h-8 shrink-0 rounded-lg grid place-items-center ${n.type === "arquiteto" ? "bg-amber-500/15 text-amber-300" : n.type === "lead" ? "bg-emerald-500/15 text-emerald-300" : "bg-white/5 text-muted"}`}>
                       <Icon size={15} />
                     </div>
                     <div className="min-w-0 flex-1">

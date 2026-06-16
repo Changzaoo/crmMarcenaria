@@ -86,8 +86,26 @@ r.patch("/:id/mover", (req, res) => {
   }
 
   const fechadoEm = (etapa === "Fechado (ganho)" || etapa === "Perdido") ? new Date().toISOString().slice(0, 19).replace("T", " ") : null;
-  db.prepare("UPDATE negocios SET etapa=?, ordem=?, motivo_perda=?, fechado_em=COALESCE(?, fechado_em) WHERE id=?")
-    .run(etapa, ordem ?? 0, etapa === "Perdido" ? motivo_perda : null, fechadoEm, req.params.id);
+
+  db.transaction(() => {
+    // Move o card para a nova etapa/posição
+    db.prepare("UPDATE negocios SET etapa=?, ordem=?, motivo_perda=?, fechado_em=COALESCE(?, fechado_em) WHERE id=?")
+      .run(etapa, ordem ?? 0, etapa === "Perdido" ? motivo_perda : null, fechadoEm, req.params.id);
+
+    // Renumera todos os cards da coluna destino para eliminar colisões de ordem.
+    // Ordena pelo índice atual + criado_em para preservar a intenção do drag.
+    const cards = db.prepare(
+      "SELECT id FROM negocios WHERE etapa=? ORDER BY CASE WHEN id=? THEN ? ELSE ordem END, criado_em"
+    ).all(etapa, req.params.id, ordem ?? 0);
+    const upd = db.prepare("UPDATE negocios SET ordem=? WHERE id=?");
+    cards.forEach((c, i) => upd.run(i, c.id));
+
+    // Se o card saiu de outra etapa, renumera a coluna de origem também.
+    if (neg.etapa !== etapa) {
+      const origem = db.prepare("SELECT id FROM negocios WHERE etapa=? ORDER BY ordem, criado_em").all(neg.etapa);
+      origem.forEach((c, i) => upd.run(i, c.id));
+    }
+  })();
 
   let projetoCriado = null;
   if (etapa === "Fechado (ganho)" && neg.etapa !== "Fechado (ganho)") {

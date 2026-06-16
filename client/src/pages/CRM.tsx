@@ -6,6 +6,7 @@ import { api } from "../lib/api";
 import { moeda, moedaCurta, data, vencido, whatsappLink, aplicarTemplate } from "../lib/format";
 import { Negocio, NegocioDetalhe, Dados3D, Empresa, EmpresaDetalhe, Funcionario, TemplateWhatsapp, ETAPAS_CRM, SEGMENTOS, ORIGENS, MOTIVOS_PERDA } from "../types";
 import { PageHeader, Card, Modal, Field, Input, Select, Textarea, Badge, useUI, Spinner } from "../components/ui";
+import { useNotifications } from "../components/Notifications";
 
 const ABERTAS = ETAPAS_CRM.filter((e) => e !== "Perdido");
 
@@ -23,21 +24,75 @@ function apiErrorMessage(error: unknown) {
 
 export default function CRM() {
   const { toast } = useUI();
+  const { push: pushNotif } = useNotifications();
   const nav = useNavigate();
   const [negocios, setNegocios] = useState<Negocio[] | null>(null);
   const [empresas, setEmpresas] = useState<Empresa[]>([]);
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([]);
   const [erroCarga, setErroCarga] = useState<string | null>(null);
   const arrastando = useRef(false);
+  const knownIds = useRef<Set<number> | null>(null);
   const [novo, setNovo] = useState<Partial<Negocio> | null>(null);
   const [detalheId, setDetalheId] = useState<number | null>(null);
   const [perda, setPerda] = useState<{ id: number; ordem: number; motivo: string } | null>(null);
 
+  // Fallback de ordenação via localStorage — garante que mesmo que o Firebase
+  // snapshot não persista a nova ordem entre reloads, a UI mantenha a posição
+  // visual dos cards. A ordenação "verdadeira" é sempre no servidor; este cache
+  // apenas evita o "salto" momentâneo até o servidor ser consultado.
+  const ORDEM_KEY = "crm:ordem-cards";
+  function salvarOrdemLocal(etapa: string, cardIds: number[]) {
+    try {
+      const atual = JSON.parse(localStorage.getItem(ORDEM_KEY) || "{}");
+      atual[etapa] = cardIds;
+      localStorage.setItem(ORDEM_KEY, JSON.stringify(atual));
+    } catch { /* ignora */ }
+  }
+  function aplicarOrdemLocal(dados: Negocio[]): Negocio[] {
+    try {
+      const cache = JSON.parse(localStorage.getItem(ORDEM_KEY) || "{}");
+      if (Object.keys(cache).length === 0) return dados;
+      return dados.map((n) => {
+        const ids = cache[n.etapa];
+        if (ids && Array.isArray(ids)) {
+          const idx = ids.indexOf(n.id);
+          if (idx !== -1) return { ...n, ordem: idx };
+        }
+        return n;
+      });
+    } catch {
+      return dados;
+    }
+  }
+
   const carregar = async () => {
     try {
       const dados = await api.get<Negocio[]>("/negocios");
-      setNegocios(dados);
+      // Aplica ordenação local como fallback — se o servidor retornou ordem
+      // inconsistente (ex.: cold start no Vercel sem snapshot recente), o
+      // cache do localStorage mantém a disposição visual que o usuário definiu.
+      const dadosOrdenados = aplicarOrdemLocal(dados);
+      setNegocios(dadosOrdenados);
       setErroCarga(null);
+
+      // Detecta novos leads/orçamentos e emite notificação
+      if (knownIds.current !== null) {
+        const novos = dados.filter((n) => !knownIds.current!.has(n.id));
+        for (const n of novos) {
+          const eh3d = n.origem === "Orçamento 3D";
+          const ehSite = n.origem === "Solicitar proposta";
+          const titulo = eh3d ? "Novo orçamento 3D recebido" : ehSite ? "Nova solicitação do site" : "Novo lead";
+          pushNotif({
+            id: `negocio:${n.id}`,
+            type: "lead",
+            title: titulo,
+            body: n.titulo,
+            to: "/crm",
+          });
+        }
+      }
+      knownIds.current = new Set(dados.map((n) => n.id));
+
       return dados;
     } catch (error) {
       const msg = apiErrorMessage(error);
@@ -123,6 +178,9 @@ export default function CRM() {
 
     // otimista
     setNegocios((prev) => prev!.map((n) => (n.id === id ? { ...n, etapa, ordem } : n)));
+    // Salva ordem no localStorage como fallback contra perda de estado após reload
+    const todosIds = negocios.filter((n) => n.etapa === etapa).sort((a, b) => a.ordem - b.ordem).map((n) => n.id);
+    salvarOrdemLocal(etapa, todosIds);
     try {
       const res = await api.patch<{ projetoCriado: number | null }>(`/negocios/${id}/mover`, { etapa, ordem });
       if (res.projetoCriado) {
@@ -338,9 +396,18 @@ function NegocioPainel({ id, onClose }: { id: number; onClose: () => void }) {
 
   const addInteracao = async () => {
     if (!nova.descricao && nova.tipo === "nota") return toast("Escreva algo.", "err");
-    await api.post(`/negocios/${id}/interacoes`, nova);
-    setNova({ tipo: "nota", descricao: "", proximo_follow_up: "" });
-    carregar(); toast("Interação registrada.");
+    try {
+      const interacao = await api.post<{ id: number }>(`/negocios/${id}/interacoes`, {
+        tipo: nova.tipo,
+        descricao: nova.descricao,
+        proximo_follow_up: nova.proximo_follow_up || null,
+      });
+      setNova({ tipo: "nota", descricao: "", proximo_follow_up: "" });
+      await carregar();
+      toast("Interação registrada.");
+    } catch (e: unknown) {
+      toast(e instanceof Error ? e.message : "Falha ao registrar interação.", "err");
+    }
   };
   const concluirFollow = async (iid: number, val: boolean) => {
     await api.patch(`/negocios/interacoes/${iid}`, { follow_up_concluido: val }); carregar();
