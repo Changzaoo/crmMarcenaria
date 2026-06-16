@@ -19,7 +19,6 @@ import ArchitectPresence from "./ArchitectPresence";
 import VoiceChat from "./VoiceChat";
 import ViewportHud from "./ViewportHud";
 import Tutorial, { openTutorial } from "./Tutorial";
-import NetStatus from "./NetStatus";
 import { dlog } from "./dlog";
 import { Panel, Btn } from "./studioUi";
 import {
@@ -208,15 +207,11 @@ export default function Orcamento3DApp() {
           {/* runtime de colaboração (doc-sync, presença, chat, voz) */}
           <CollabBridge />
           {/* barra superior */}
-          <div className="flex items-center justify-between gap-2 border-b border-champagne/10 bg-[rgba(12,10,8,0.7)] px-3 py-2 backdrop-blur-md">
-            <div className="hidden items-center gap-3 lg:flex">
-              <span className="text-[11px] uppercase tracking-widest2 text-champagne/80">Estúdio 3D</span>
-              <NetStatus />
-            </div>
+          <div className="flex items-center gap-2 border-b border-champagne/10 bg-[rgba(12,10,8,0.7)] px-3 py-2 backdrop-blur-md">
             <div className="flex-1 lg:flex-none">
               <ViewModeSwitcher />
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="ml-auto flex items-center gap-1.5">
               <VoiceChat />
               {(viewMode === "primeira" || viewMode === "terceira") && (
                 <Btn
