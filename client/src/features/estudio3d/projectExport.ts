@@ -55,7 +55,7 @@ function buildHTML(p: Project3D): string {
     img{max-width:420px;border-radius:12px;margin-top:18px;border:1px solid #e6ddcc}
     @media print{.badge{-webkit-print-color-adjust:exact}}
   </style></head><body>
-  <p class="muted">LINEAR · Estúdio 3D de Orçamento</p>
+  <p class="muted">Nexus Marcenaria · Estúdio 3D de Orçamento</p>
   <h1>${escapeHtml(p.name)}</h1>
   <p class="badge">Estimativa: ${brl(p.estimate.min)} a ${brl(p.estimate.max)}</p>
   <div class="grid">

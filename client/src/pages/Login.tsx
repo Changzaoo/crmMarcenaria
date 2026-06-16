@@ -80,7 +80,7 @@ export default function Login() {
 
         <div className="relative max-w-2xl">
           <p className="text-xs uppercase tracking-[0.28em] text-champagne mb-4">CRM de marcenaria</p>
-          <h1 className="font-display text-7xl text-text leading-none">LINEAR</h1>
+          <h1 className="font-display text-7xl text-text leading-none">NEXUS</h1>
           <p className="mt-6 max-w-xl text-muted leading-7">
             Acesso interno para equipe autorizada.
           </p>
@@ -103,7 +103,7 @@ export default function Login() {
               <KeyRound size={24} />
             </div>
             <h2 className="font-display text-3xl">Entrar</h2>
-            <p className="text-sm text-muted mt-2">Email e senha da equipe LINEAR.</p>
+            <p className="text-sm text-muted mt-2">Email e senha da equipe Nexus Marcenaria.</p>
           </div>
 
           <div className="space-y-4">

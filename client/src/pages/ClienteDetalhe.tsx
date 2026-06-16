@@ -81,7 +81,7 @@ export default function ClienteDetalhe() {
                     <div className="text-xs text-muted mt-1">{c.telefone} {c.email && `· ${c.email}`}</div>
                   </div>
                   <div className="flex flex-col items-end gap-1 shrink-0">
-                    {c.telefone && <a href={whatsappLink(c.telefone, `Olá ${c.nome}, aqui é da LINEAR.`)} target="_blank" className="text-emerald-400 text-xs hover:underline">WhatsApp</a>}
+                    {c.telefone && <a href={whatsappLink(c.telefone, `Olá ${c.nome}, aqui é da Nexus Marcenaria.`)} target="_blank" className="text-emerald-400 text-xs hover:underline">WhatsApp</a>}
                     <button className="text-muted hover:text-champagne text-xs" onClick={() => setModalContato(c)}>Editar</button>
                     <button className="text-muted hover:text-red-300 text-xs" onClick={() => excluirContato(c)}>Excluir</button>
                   </div>

@@ -52,7 +52,7 @@ export function PropostaPDF({ orc, cfg }: { orc: Orcamento; cfg: Configuracoes }
       <Page size="A4" style={s.page}>
         <View style={s.cover}>
           <View>
-            <Text style={s.brand}>LINEAR</Text>
+            <Text style={s.brand}>NEXUS MARCENARIA</Text>
             <Text style={s.brandSub}>MARCENARIA CORPORATIVA</Text>
           </View>
           <View>

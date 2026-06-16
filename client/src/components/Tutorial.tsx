@@ -68,7 +68,7 @@ const NOTIF_STEP: TourStep = {
 export const TOURS: Record<string, TourStep[]> = {
   "/": [
     {
-      title: "Bem-vindo à LINEAR",
+      title: "Bem-vindo à Nexus Marcenaria",
       body: "Este é um tour rápido e interativo. Vou destacar os elementos que você usa no dia a dia. Use Próximo para avançar ou Pular para sair.",
     },
     SIDEBAR_STEP,
@@ -140,7 +140,7 @@ export const TOURS: Record<string, TourStep[]> = {
     {
       target: '[data-tour="page-action"]',
       title: "Novo projeto",
-      body: "Cada projeto já nasce com as 10 etapas oficiais da produção LINEAR.",
+      body: "Cada projeto já nasce com as 10 etapas oficiais da produção Nexus Marcenaria.",
       placement: "left",
     },
     HELP_STEP,

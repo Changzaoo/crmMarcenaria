@@ -185,7 +185,7 @@ export default function ArchitectSupportPage() {
                   <LogIn size={14} /> Entrar
                 </button>
                 <a
-                  href={whatsappLink(l.whatsapp, `Olá ${l.nome}, sou da LINEAR e vi o seu projeto 3D. Posso te ajudar?`)}
+                  href={whatsappLink(l.whatsapp, `Olá ${l.nome}, sou da Nexus Marcenaria e vi o seu projeto 3D. Posso te ajudar?`)}
                   target="_blank"
                   rel="noreferrer"
                   className="btn-ghost text-xs py-2 col-span-2"

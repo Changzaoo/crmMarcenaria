@@ -26,7 +26,7 @@ export default function Projetos() {
   if (!lista) return <Spinner />;
   return (
     <div>
-      <PageHeader title="Projetos e produção" subtitle="Pipeline com as 10 etapas oficiais LINEAR"
+      <PageHeader title="Projetos e produção" subtitle="Pipeline com as 10 etapas oficiais Nexus Marcenaria"
         actions={<button data-tour="page-action" className="btn-primary" onClick={() => setNovo({ nome: "", status: "Em andamento" })}>+ Novo projeto</button>} />
 
       {lista.length === 0 ? (

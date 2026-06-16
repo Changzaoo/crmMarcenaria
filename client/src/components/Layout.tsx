@@ -51,9 +51,9 @@ export default function Layout({ children }: { children: ReactNode }) {
       <aside className="w-20 lg:w-64 shrink-0 bg-surface border-r border-white/5 flex flex-col h-screen">
         <div className="shrink-0 px-3 lg:px-6 py-5 lg:py-7 border-b border-white/5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-champagne text-background grid place-items-center font-display text-xl">L</div>
+            <div className="w-10 h-10 rounded-lg bg-champagne text-background grid place-items-center font-display text-xl">N</div>
             <div className="hidden lg:block">
-              <div className="font-display text-2xl tracking-[0.24em] text-text">LINEAR</div>
+              <div className="font-display text-2xl tracking-[0.24em] text-text">NEXUS</div>
               <div className="text-[10px] uppercase tracking-[0.2em] text-champagne mt-1">Marcenaria</div>
             </div>
           </div>

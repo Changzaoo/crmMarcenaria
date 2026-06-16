@@ -1,7 +1,7 @@
 import { Projeto } from "../types";
 import { moeda, data } from "./format";
 
-// Ordem de Serviço imprimível — abre janela estilizada com a identidade LINEAR.
+// Ordem de Serviço imprimível — abre janela estilizada com a identidade Nexus Marcenaria.
 export function imprimirOS(p: Projeto) {
   const etapas = (p.etapas || []).map((et) => {
     const itens = et.checklist.map((c) => `<li class="${c.concluido ? "ok" : ""}">${c.concluido ? "☑" : "☐"} ${c.texto}</li>`).join("");
@@ -35,7 +35,7 @@ export function imprimirOS(p: Projeto) {
     @media print { body { padding: 20px; } }
   </style></head><body>
     <div class="head">
-      <div class="brand">LINEAR<small>MARCENARIA CORPORATIVA</small></div>
+      <div class="brand">NEXUS<small>MARCENARIA CORPORATIVA</small></div>
       <div style="text-align:right; font-size:12px;">
         <strong>ORDEM DE SERVIÇO</strong><br/>
         Emitida em ${data(new Date().toISOString())}<br/>
@@ -57,7 +57,7 @@ export function imprimirOS(p: Projeto) {
     <div style="font-size:13px;">${contatos}</div>
     <div class="sec">Etapas e checklist</div>
     ${etapas}
-    <div class="foot">Documento gerado pelo sistema de gestão LINEAR. Sujeito a revisão conforme andamento da obra.</div>
+    <div class="foot">Documento gerado pelo sistema de gestão Nexus Marcenaria. Sujeito a revisão conforme andamento da obra.</div>
   </body></html>`;
 
   // Sem <script> inline na janela (janelas about:blank herdam a CSP da página,
