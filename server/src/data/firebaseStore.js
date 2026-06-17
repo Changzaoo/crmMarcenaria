@@ -11,7 +11,6 @@ const DATA_STRICT = process.env.FIREBASE_DATA_STRICT === "1";
 
 let hydrated = false;
 let hydrating = null;
-let saving = null;
 let disabledByError = false;
 let lastError = null;
 
@@ -91,31 +90,22 @@ export async function hydrateFirebaseData(req, _res, next) {
       hydrating ||= (async () => {
         const snapshot = await firebaseFetch(DATABASE_PATH, req.firebaseToken);
 
-          // Só restaura o snapshot se o SQLite local estiver VAZIO (primeira
-          // inicialização / ambiente efêmero tipo Vercel). Se já tem dados no
-          // SQLite local (que é persistente em dev), o snapshot remoto NÃO
-          // deve sobrescrever — senão interações, movimentações de cards etc.
-          // que foram feitas após o último save bem-sucedido são perdidas.
-          let temDadosLocais = false;
-          try {
-            const row = db.prepare("SELECT COUNT(*) c FROM negocios").get();
-            temDadosLocais = row && row.c > 0;
-          } catch {
-            temDadosLocais = false;
-          }
-
-          if (snapshot && typeof snapshot === "object" && snapshot._versao && !temDadosLocais) {
-            console.log("[firebase-data] Restaurando snapshot do Firebase (banco local vazio).");
-            restoreDatabase(snapshot);
-          } else if (!temDadosLocais) {
-            // Banco vazio e sem snapshot remoto: salva o banco atual (seed).
-            console.log("[firebase-data] Banco vazio, sem snapshot remoto. Salvando seed.");
-            await saveSnapshot(req.firebaseToken);
-          } else {
-            // Banco local já tem dados — atualiza o snapshot remoto com os dados locais.
-            console.log("[firebase-data] Banco local já populado. Atualizando snapshot remoto...");
-            await saveSnapshot(req.firebaseToken);
-          }
+        // O snapshot remoto é a FONTE DE VERDADE. Como cada mutação salva o
+        // snapshot de forma síncrona (persistFirebaseData), o remoto está sempre
+        // tão fresco quanto o estado real. Num processo novo o SQLite local é só
+        // o seed de demonstração (ambiente efêmero do Vercel recria-o a cada cold
+        // start) — restaurar o remoto por cima dele é o correto. NÃO usamos mais
+        // a presença de dados locais como sinal: o seed parecia "dados reais" e
+        // acabava SOBRESCREVENDO o snapshot bom no Firebase a cada reinício,
+        // fazendo interações e posições de cards "sumirem" ao recarregar.
+        if (snapshot && typeof snapshot === "object" && snapshot._versao) {
+          console.log("[firebase-data] Restaurando snapshot do Firebase (fonte de verdade).");
+          restoreDatabase(snapshot);
+        } else {
+          // Não existe snapshot remoto ainda: promove o banco local (seed) ao remoto.
+          console.log("[firebase-data] Sem snapshot remoto. Salvando estado local inicial.");
+          await saveSnapshot(req.firebaseToken);
+        }
         hydrated = true;
       })().finally(() => {
         hydrating = null;

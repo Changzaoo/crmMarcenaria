@@ -10,6 +10,13 @@ import {
 import { useNavigate } from "react-router-dom";
 import { Bell, BellRing, PhoneCall, Check, Trash2, Info, UserPlus } from "lucide-react";
 import { listarLeads } from "../features/orcamento3d/services/leadService";
+import { api } from "../lib/api";
+
+interface NegocioResumo {
+  id: number;
+  titulo: string;
+  origem?: string | null;
+}
 
 /* ------------------------------------------------------------------ */
 /*  Tipos + contexto                                                   */
@@ -153,10 +160,14 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  // Polling: detecta clientes chamando um arquiteto no Estúdio 3D e gera avisos.
+  // Polling global: detecta (1) clientes chamando um arquiteto no Estúdio 3D e
+  // (2) novos leads/orçamentos que entram no funil — gerando avisos em qualquer
+  // página. A 1ª leitura só estabelece a linha de base (não notifica o que já existe).
+  const negociosConhecidos = useRef<Set<number> | null>(null);
   useEffect(() => {
     let alive = true;
     const tick = async () => {
+      // (1) Arquiteto solicitado no Estúdio 3D
       try {
         const leads = await listarLeads();
         if (!alive) return;
@@ -172,6 +183,29 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         }
       } catch {
         /* silencioso — sem auth/offline não deve quebrar a UI */
+      }
+
+      // (2) Novos leads/orçamentos no funil comercial
+      try {
+        const negocios = await api.get<NegocioResumo[]>("/negocios");
+        if (!alive) return;
+        if (negociosConhecidos.current !== null) {
+          for (const n of negocios) {
+            if (negociosConhecidos.current.has(n.id)) continue;
+            const eh3d = n.origem === "Orçamento 3D";
+            const ehSite = n.origem === "Solicitar proposta";
+            push({
+              id: `negocio:${n.id}`,
+              type: "lead",
+              title: eh3d ? "Novo orçamento 3D recebido" : ehSite ? "Nova solicitação do site" : "Novo lead",
+              body: n.titulo,
+              to: "/crm",
+            });
+          }
+        }
+        negociosConhecidos.current = new Set(negocios.map((n) => n.id));
+      } catch {
+        /* silencioso */
       }
     };
     tick();

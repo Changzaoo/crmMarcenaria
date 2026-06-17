@@ -93,10 +93,14 @@ r.patch("/:id/mover", (req, res) => {
       .run(etapa, ordem ?? 0, etapa === "Perdido" ? motivo_perda : null, fechadoEm, req.params.id);
 
     // Renumera todos os cards da coluna destino para eliminar colisões de ordem.
-    // Ordena pelo índice atual + criado_em para preservar a intenção do drag.
+    // Em caso de empate na posição, o card movido vence (cai exatamente no índice
+    // solicitado, empurrando o que estava ali para baixo); demais empates por criado_em.
     const cards = db.prepare(
-      "SELECT id FROM negocios WHERE etapa=? ORDER BY CASE WHEN id=? THEN ? ELSE ordem END, criado_em"
-    ).all(etapa, req.params.id, ordem ?? 0);
+      `SELECT id FROM negocios WHERE etapa=?
+       ORDER BY (CASE WHEN id=? THEN ? ELSE ordem END),
+                (CASE WHEN id=? THEN 0 ELSE 1 END),
+                criado_em`
+    ).all(etapa, req.params.id, ordem ?? 0, req.params.id);
     const upd = db.prepare("UPDATE negocios SET ordem=? WHERE id=?");
     cards.forEach((c, i) => upd.run(i, c.id));
 

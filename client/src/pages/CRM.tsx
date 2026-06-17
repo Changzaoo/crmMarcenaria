@@ -178,9 +178,22 @@ export default function CRM() {
 
     // otimista
     setNegocios((prev) => prev!.map((n) => (n.id === id ? { ...n, etapa, ordem } : n)));
-    // Salva ordem no localStorage como fallback contra perda de estado após reload
-    const todosIds = negocios.filter((n) => n.etapa === etapa).sort((a, b) => a.ordem - b.ordem).map((n) => n.id);
-    salvarOrdemLocal(etapa, todosIds);
+    // Salva ordem no localStorage como fallback contra perda de estado após reload.
+    // Reconstrói a coluna de destino com o card movido inserido na posição `ordem`.
+    const destino = negocios
+      .filter((n) => n.etapa === etapa && n.id !== id)
+      .sort((a, b) => a.ordem - b.ordem)
+      .map((n) => n.id);
+    destino.splice(ordem, 0, id);
+    salvarOrdemLocal(etapa, destino);
+    // Atualiza também a coluna de origem (sem o card que saiu).
+    if (neg.etapa !== etapa) {
+      const origem = negocios
+        .filter((n) => n.etapa === neg.etapa && n.id !== id)
+        .sort((a, b) => a.ordem - b.ordem)
+        .map((n) => n.id);
+      salvarOrdemLocal(neg.etapa, origem);
+    }
     try {
       const res = await api.patch<{ projetoCriado: number | null }>(`/negocios/${id}/mover`, { etapa, ordem });
       if (res.projetoCriado) {
