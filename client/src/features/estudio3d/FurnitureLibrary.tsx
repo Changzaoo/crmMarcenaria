@@ -1,10 +1,9 @@
 import { useMemo, useRef, useState } from "react";
-import { Canvas } from "@react-three/fiber";
-import { View } from "@react-three/drei";
 import { FURNITURE_CATALOG, CATEGORY_LABELS } from "./furnitureCatalog";
 import { actions } from "./useOrcamento3DStore";
 import { brl } from "./pricingEngine";
 import FurniturePreview from "./FurniturePreview";
+import ThumbnailFactory from "./ThumbnailFactory";
 import { ACCEPTED_3D, importModelFile } from "./modelImport";
 import { toast } from "./toast";
 import type { FurnitureCategory } from "./types";
@@ -39,7 +38,6 @@ export default function FurnitureLibrary() {
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState<FurnitureCategory | "todos">("todos");
   const fileRef = useRef<HTMLInputElement>(null);
-  const gridRef = useRef<HTMLDivElement>(null);
   const [importing, setImporting] = useState(false);
 
   const onImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,43 +119,30 @@ export default function FurnitureLibrary() {
         <p className="mt-1 text-center text-[10px] text-muted">glb · gltf · obj · stl · fbx</p>
       </div>
 
-      {/* área dos cards: um único Canvas WebGL alimenta todos os thumbnails 3D
-          via <View>, evitando dezenas de contextos WebGL. */}
-      <div className="relative flex-1 overflow-hidden">
-        <div
-          ref={gridRef}
-          className="grid h-full grid-cols-2 content-start gap-2 overflow-y-auto px-3 pb-3"
-        >
-          {items.map((it) => (
-            <button
-              key={it.id}
-              onClick={() => actions.addFurniture(it)}
-              className="group rounded-lg border border-champagne/15 bg-surface/40 p-2.5 text-left transition hover:border-champagne/45 hover:bg-champagne/5"
-            >
-              {/* thumbnail 3D real (mesmo modelo da cena) */}
-              <div className="mb-2 h-20 overflow-hidden rounded-md bg-gradient-to-b from-[#241d15] to-[#0f0d0b] ring-1 ring-inset ring-champagne/10">
-                <FurniturePreview category={it.category} id={it.id} />
-              </div>
-              <div className="flex items-center gap-1.5">
-                <span className={`h-1.5 w-1.5 rounded-full ${COMPLEXITY_DOT[it.complexity]}`} />
-                <p className="truncate text-xs font-medium text-text">{it.name}</p>
-              </div>
-              <p className="mt-0.5 text-[10px] text-muted">
-                {it.defaultWidth}×{it.defaultHeight}×{it.defaultDepth} · a partir de {brl(it.basePrice)}
-              </p>
-            </button>
-          ))}
-        </div>
-
-        <Canvas
-          className="!pointer-events-none !absolute !inset-0"
-          eventSource={gridRef as any}
-          dpr={[1, 1.6]}
-          gl={{ antialias: true, alpha: true, preserveDrawingBuffer: false }}
-        >
-          <View.Port />
-        </Canvas>
+      {/* cards do catálogo — cada thumbnail é uma "foto" PNG do modelo 3D real,
+          gerada uma única vez pelo ThumbnailFactory (abaixo). */}
+      <div className="grid flex-1 grid-cols-2 content-start gap-2 overflow-y-auto px-3 pb-3">
+        {items.map((it) => (
+          <button
+            key={it.id}
+            onClick={() => actions.addFurniture(it)}
+            className="group rounded-lg border border-champagne/15 bg-surface/40 p-2.5 text-left transition hover:border-champagne/45 hover:bg-champagne/5"
+          >
+            <div className="mb-2 h-20 overflow-hidden rounded-md bg-gradient-to-b from-[#241d15] to-[#0f0d0b] ring-1 ring-inset ring-champagne/10">
+              <FurniturePreview category={it.category} id={it.id} />
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className={`h-1.5 w-1.5 rounded-full ${COMPLEXITY_DOT[it.complexity]}`} />
+              <p className="truncate text-xs font-medium text-text">{it.name}</p>
+            </div>
+            <p className="mt-0.5 text-[10px] text-muted">
+              {it.defaultWidth}×{it.defaultHeight}×{it.defaultDepth} · a partir de {brl(it.basePrice)}
+            </p>
+          </button>
+        ))}
       </div>
+
+      <ThumbnailFactory />
     </div>
   );
 }
