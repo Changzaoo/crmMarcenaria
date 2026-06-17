@@ -13,17 +13,26 @@ export function createApp() {
 
   const ALLOWED_ORIGINS = (
     process.env.ALLOWED_ORIGINS ||
-    "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5174,https://linea-marcenaria.vercel.app,https://crm-marcenaria.vercel.app"
+    "http://localhost:5173,http://localhost:5174,http://127.0.0.1:5174,https://linea-marcenaria.vercel.app,https://crm-marcenaria.vercel.app,https://marcenaria.nexusholding.xyz"
   )
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean);
 
+  // Qualquer subdomínio de nexusholding.xyz (e *.vercel.app dos apps) é aceito,
+  // além da allowlist explícita acima — assim trocar de domínio não quebra o CORS.
+  const ALLOWED_ORIGIN_PATTERNS = [/^https:\/\/([a-z0-9-]+\.)*nexusholding\.xyz$/i];
+
+  function isAllowedOrigin(origin) {
+    if (ALLOWED_ORIGINS.includes(origin)) return true;
+    return ALLOWED_ORIGIN_PATTERNS.some((re) => re.test(origin));
+  }
+
   app.use(
     cors({
       origin(origin, cb) {
         if (!origin) return cb(null, true);
-        return cb(null, ALLOWED_ORIGINS.includes(origin));
+        return cb(null, isAllowedOrigin(origin));
       },
     })
   );
