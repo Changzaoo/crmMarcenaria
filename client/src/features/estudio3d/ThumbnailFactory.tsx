@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
-import { ContactShadows, PerspectiveCamera } from "@react-three/drei";
+import { ContactShadows } from "@react-three/drei";
 import { FURNITURE_CATALOG, CATALOG_MAP, defaultConfigFor } from "./furnitureCatalog";
 import { FurniturePreviewModel } from "./FurnitureMesh";
 import { setThumb, hasThumb } from "./furnitureThumbnails";
@@ -52,7 +52,6 @@ function Capturer({ id, onDone }: { id: string; onDone: () => void }) {
 
   return (
     <>
-      <PerspectiveCamera makeDefault position={[1.7, 1.2, 2.05]} fov={34} />
       <ambientLight intensity={0.7} />
       <hemisphereLight args={["#fff4e0", "#1a1612", 0.5]} />
       <directionalLight position={[3, 5, 3]} intensity={1.15} />
@@ -80,7 +79,12 @@ export default function ThumbnailFactory() {
       aria-hidden
       style={{ position: "fixed", left: -10000, top: 0, width: 256, height: 256, opacity: 0, pointerEvents: "none" }}
     >
-      <Canvas dpr={1.5} gl={{ preserveDrawingBuffer: true, alpha: true, antialias: true }}>
+      <Canvas
+        dpr={1.5}
+        gl={{ preserveDrawingBuffer: true, alpha: true, antialias: true }}
+        camera={{ position: [1.7, 1.2, 2.05], fov: 34 }}
+        onCreated={({ camera }) => camera.lookAt(0, 0, 0)}
+      >
         <Capturer key={queue[i]} id={queue[i]} onDone={() => setI((v) => v + 1)} />
       </Canvas>
     </div>

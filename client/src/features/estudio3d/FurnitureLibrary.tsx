@@ -37,6 +37,7 @@ const CATEGORY_ICON: Record<FurnitureCategory | "todos", string> = {
 export default function FurnitureLibrary() {
   const [query, setQuery] = useState("");
   const [cat, setCat] = useState<FurnitureCategory | "todos">("todos");
+  const [catsOpen, setCatsOpen] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
 
@@ -102,10 +103,31 @@ export default function FurnitureLibrary() {
           placeholder="Buscar móvel…"
           className="w-full rounded-lg border border-champagne/20 bg-surface/60 px-3 py-2 text-sm text-text outline-none placeholder:text-muted/60 focus:border-champagne/50"
         />
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {chip("todos", "Todos")}
-          {cats.map((c) => chip(c, CATEGORY_LABELS[c]))}
+        <div className="mt-2 flex items-center justify-between">
+          <span className="text-[10px] font-medium uppercase tracking-wide text-muted">Categorias</span>
+          <button
+            type="button"
+            onClick={() => setCatsOpen((v) => !v)}
+            aria-expanded={catsOpen}
+            title={catsOpen ? "Ocultar categorias" : "Expandir categorias"}
+            className="flex items-center gap-1 rounded-full border border-champagne/15 bg-surface/40 px-2 py-0.5 text-[10px] font-medium text-muted transition hover:border-champagne/35 hover:text-text"
+          >
+            <span className="leading-none text-champagne/70">{catsOpen ? "▾" : "▸"}</span>
+            {catsOpen ? "Ocultar" : "Expandir"}
+          </button>
         </div>
+
+        {catsOpen ? (
+          <div className="mt-1.5 flex flex-wrap gap-1.5">
+            {chip("todos", "Todos")}
+            {cats.map((c) => chip(c, CATEGORY_LABELS[c]))}
+          </div>
+        ) : (
+          <div className="mt-1.5 flex items-center gap-1.5">
+            {chip(cat, cat === "todos" ? "Todos" : CATEGORY_LABELS[cat])}
+            <span className="text-[10px] text-muted">filtro ativo</span>
+          </div>
+        )}
 
         <input ref={fileRef} type="file" accept={ACCEPTED_3D} className="hidden" onChange={onImport} />
         <button
