@@ -384,6 +384,17 @@ function CategoryModel({ f, s, stone }: { f: PlacedFurniture; s: SurfaceProps; s
   );
 }
 
+/* ---------- modelo isolado (sem posição/seleção) p/ thumbnails do catálogo ---------- */
+export function FurniturePreviewModel({ f }: { f: PlacedFurniture }) {
+  const w = f.width * M;
+  const s = useMemo(
+    () => getSurface(f.config.material, f.config.surface, f.config.finish, rep(w)),
+    [f.config.material, f.config.surface, f.config.finish, w]
+  );
+  const stone = useMemo(() => stoneTexture(), []);
+  return <CategoryModel f={f} s={s} stone={stone} />;
+}
+
 /* ---------- modelo 3D importado pelo cliente ---------- */
 function ImportedModel({ f }: { f: PlacedFurniture }) {
   const [obj, setObj] = useState<THREE.Object3D | null>(null);

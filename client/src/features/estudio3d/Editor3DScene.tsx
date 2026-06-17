@@ -241,7 +241,9 @@ function ResizeHandles({
     rot: number;
   }) => (
     <group position={pos} rotation={[0, rot, 0]}>
+      {/* botão central: disco chanfrado com brilho */}
       <mesh
+        rotation={[Math.PI / 2, 0, 0]}
         onPointerDown={onDown}
         onPointerOver={(e) => {
           e.stopPropagation();
@@ -251,18 +253,29 @@ function ResizeHandles({
           document.body.style.cursor = "";
         }}
       >
-        <boxGeometry args={[0.55, 0.16, 0.55]} />
-        <meshStandardMaterial color="#D8B978" emissive="#3a2c1c" emissiveIntensity={0.5} roughness={0.35} metalness={0.6} />
+        <cylinderGeometry args={[0.26, 0.3, 0.12, 28]} />
+        <meshStandardMaterial color="#EBC97C" emissive="#7a5a22" emissiveIntensity={0.55} roughness={0.28} metalness={0.85} />
       </mesh>
-      {/* setas de dica (◀ ▶) indicando que estica */}
-      <mesh position={[0.42, 0, 0]} rotation={[0, 0, -Math.PI / 2]}>
-        <coneGeometry args={[0.12, 0.22, 4]} />
-        <meshStandardMaterial color="#D8B978" roughness={0.4} metalness={0.5} />
+      {/* anel de destaque ao redor do botão */}
+      <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.065, 0]}>
+        <ringGeometry args={[0.31, 0.37, 32]} />
+        <meshBasicMaterial color="#D8B978" transparent opacity={0.45} side={2} />
       </mesh>
-      <mesh position={[-0.42, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-        <coneGeometry args={[0.12, 0.22, 4]} />
-        <meshStandardMaterial color="#D8B978" roughness={0.4} metalness={0.5} />
-      </mesh>
+      {/* setas dupla-ponta (⇆) bem definidas, sobre hastes finas */}
+      {[1, -1].map((s) => (
+        <group key={s} position={[s * 0.34, 0.02, 0]}>
+          {/* haste */}
+          <mesh position={[s * 0.16, 0, 0]}>
+            <boxGeometry args={[0.26, 0.045, 0.045]} />
+            <meshStandardMaterial color="#F2D795" emissive="#5a4118" emissiveIntensity={0.5} roughness={0.3} metalness={0.8} />
+          </mesh>
+          {/* ponta cônica */}
+          <mesh position={[s * 0.4, 0, 0]} rotation={[0, 0, s > 0 ? -Math.PI / 2 : Math.PI / 2]}>
+            <coneGeometry args={[0.13, 0.26, 24]} />
+            <meshStandardMaterial color="#F2D795" emissive="#5a4118" emissiveIntensity={0.55} roughness={0.28} metalness={0.85} />
+          </mesh>
+        </group>
+      ))}
     </group>
   );
   return (
