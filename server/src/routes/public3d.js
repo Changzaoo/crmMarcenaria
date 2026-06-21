@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { heartbeat, leave, pushDoc, getState } from "../lib/collab3d.js";
 import { rateLimit } from "../lib/rateLimit.js";
+import { notifyProjectUpdated } from "../lib/relayPublish.js";
 import { validarLead, LEAD_ORIGINS } from "../shared/contract.js";
 import {
   criarLeadEProjeto,
@@ -82,6 +83,8 @@ r.put(
   asyncRoute(async (req, res) => {
     const p = await salvarProjeto(req.params.id, req.body || {});
     if (!p) return res.status(404).json({ erro: "Projeto não encontrado." });
+    // Avisa o relay (CRM -> cliente em tempo real). Fire-and-forget.
+    notifyProjectUpdated(req.params.id, { event: "saved", status: p.status });
     res.json(p);
   })
 );
@@ -92,6 +95,7 @@ r.post(
   asyncRoute(async (req, res) => {
     const out = await enviarParaAnalise(req.params.id, (req.body || {}).doc);
     if (!out) return res.status(404).json({ erro: "Projeto não encontrado." });
+    notifyProjectUpdated(req.params.id, { event: "sent" });
     res.json(out);
   })
 );
