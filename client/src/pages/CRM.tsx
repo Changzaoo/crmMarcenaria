@@ -10,6 +10,19 @@ import { useNotifications } from "../components/Notifications";
 
 const ABERTAS = ETAPAS_CRM.filter((e) => e !== "Perdido");
 
+// Cor de acento por etapa — dá leitura/escaneabilidade ao funil.
+const STAGE_COLORS: Record<string, string> = {
+  "Lead": "#8aa6c8",
+  "Qualificação": "#6cc5d8",
+  "Briefing técnico": "#7c9fe0",
+  "Visita/Medição": "#b79be6",
+  "Proposta enviada": "#D8B978",
+  "Negociação": "#e0a96d",
+  "Fechado (ganho)": "#7bc47f",
+  "Perdido": "#d98a8a",
+};
+const corEtapa = (e: string) => STAGE_COLORS[e] || "#D8B978";
+
 function parse3D(neg: NegocioDetalhe): Dados3D | null {
   try {
     return neg.dados_3d ? (JSON.parse(neg.dados_3d) as Dados3D) : null;
@@ -32,6 +45,10 @@ export default function CRM() {
   const [erroCarga, setErroCarga] = useState<string | null>(null);
   const arrastando = useRef(false);
   const knownIds = useRef<Set<number> | null>(null);
+  // Controle de corrida entre o move (otimista + PATCH) e o polling de fundo:
+  const movendo = useRef(0);          // nº de moves sendo persistidos (PATCH em voo)
+  const bloquearPollAte = useRef(0);  // timestamp até o qual o poll não sobrescreve a UI
+  const cargaSeq = useRef(0);         // geração da última carga (descarta respostas obsoletas)
   const [novo, setNovo] = useState<Partial<Negocio> | null>(null);
   const [detalheId, setDetalheId] = useState<number | null>(null);
   const [perda, setPerda] = useState<{ id: number; ordem: number; motivo: string } | null>(null);
@@ -64,42 +81,68 @@ export default function CRM() {
       return dados;
     }
   }
-
-  const carregar = async () => {
+  // Reescreve o cache para refletir o estado realmente aplicado (servidor + fallback),
+  // podando ids que não existem mais e cards que mudaram de etapa. Sem isto o cache
+  // acumula entradas obsoletas e diverge permanentemente do servidor com o tempo.
+  function reconciliarCacheLocal(lista: Negocio[]) {
     try {
-      const dados = await api.get<Negocio[]>("/negocios");
-      // Aplica ordenação local como fallback — se o servidor retornou ordem
-      // inconsistente (ex.: cold start no Vercel sem snapshot recente), o
-      // cache do localStorage mantém a disposição visual que o usuário definiu.
-      const dadosOrdenados = aplicarOrdemLocal(dados);
-      setNegocios(dadosOrdenados);
-      setErroCarga(null);
-
-      // Detecta novos leads/orçamentos e emite notificação
-      if (knownIds.current !== null) {
-        const novos = dados.filter((n) => !knownIds.current!.has(n.id));
-        for (const n of novos) {
-          const eh3d = n.origem === "Orçamento 3D";
-          const ehSite = n.origem === "Solicitar proposta";
-          const titulo = eh3d ? "Novo orçamento 3D recebido" : ehSite ? "Nova solicitação do site" : "Novo lead";
-          pushNotif({
-            id: `negocio:${n.id}`,
-            type: "lead",
-            title: titulo,
-            body: n.titulo,
-            to: "/crm",
-          });
-        }
+      const porEtapa: Record<string, number[]> = {};
+      for (const n of [...lista].sort((a, b) => a.ordem - b.ordem)) {
+        (porEtapa[n.etapa] ||= []).push(n.id);
       }
-      knownIds.current = new Set(dados.map((n) => n.id));
+      localStorage.setItem(ORDEM_KEY, JSON.stringify(porEtapa));
+    } catch { /* ignora */ }
+  }
 
-      return dados;
+  // Carrega o funil do servidor. `silencioso` (poll de fundo) não sobrescreve a UI
+  // enquanto há um move em andamento/recente, evitando que uma leitura mais antiga
+  // (ou de instância desatualizada) "puxe" um card de volta para a posição anterior.
+  const carregar = async (opts: { silencioso?: boolean } = {}) => {
+    const seq = ++cargaSeq.current;
+    let dados: Negocio[];
+    try {
+      dados = await api.get<Negocio[]>("/negocios");
     } catch (error) {
-      const msg = apiErrorMessage(error);
-      setErroCarga(msg);
-      toast(msg, "err");
+      // Só reporta o erro se esta ainda for a carga mais recente e não for poll.
+      if (seq === cargaSeq.current && !opts.silencioso) {
+        const msg = apiErrorMessage(error);
+        setErroCarga(msg);
+        toast(msg, "err");
+      }
       return negocios || [];
     }
+
+    // Resposta obsoleta: outra carga mais nova já foi disparada (ex.: recarga
+    // pós-move). Descarta para não sobrescrever a UI com dados antigos.
+    if (seq !== cargaSeq.current) return dados;
+
+    // Detecta novos leads/orçamentos e emite notificação (sempre — mesmo que a
+    // aplicação visual seja adiada por um move em andamento).
+    if (knownIds.current !== null) {
+      const novos = dados.filter((n) => !knownIds.current!.has(n.id));
+      for (const n of novos) {
+        const eh3d = n.origem === "Orçamento 3D";
+        const ehSite = n.origem === "Solicitar proposta";
+        const titulo = eh3d ? "Novo orçamento 3D recebido" : ehSite ? "Nova solicitação do site" : "Novo lead";
+        pushNotif({ id: `negocio:${n.id}`, type: "lead", title: titulo, body: n.titulo, to: "/crm" });
+      }
+    }
+    knownIds.current = new Set(dados.map((n) => n.id));
+
+    // Nunca sobrescreve durante o gesto de arrastar. Polls de fundo também não
+    // sobrescrevem com um move sendo persistido nem na janela de carência logo
+    // após um move (dá tempo do snapshot propagar entre instâncias no Vercel).
+    if (arrastando.current) return dados;
+    if (opts.silencioso && (movendo.current > 0 || Date.now() < bloquearPollAte.current)) return dados;
+
+    // Aplica ordenação local como fallback — se o servidor retornou ordem
+    // inconsistente (ex.: cold start no Vercel sem snapshot recente), o cache do
+    // localStorage mantém a disposição visual que o usuário definiu.
+    const aplicado = aplicarOrdemLocal(dados);
+    setNegocios(aplicado);
+    reconciliarCacheLocal(aplicado);
+    setErroCarga(null);
+    return dados;
   };
 
   const [sincronizando, setSincronizando] = useState(false);
@@ -130,7 +173,11 @@ export default function CRM() {
         api.get<Empresa[]>("/empresas"),
         api.get<Funcionario[]>("/funcionarios").catch(() => []),
       ]);
-      setNegocios(dadosNegocios);
+      cargaSeq.current += 1; // marca uma carga "fresca": invalida polls em voo
+      const aplicado = aplicarOrdemLocal(dadosNegocios);
+      setNegocios(aplicado);
+      reconciliarCacheLocal(aplicado);
+      knownIds.current = new Set(dadosNegocios.map((n) => n.id));
       setEmpresas(dadosEmpresas);
       setFuncionarios(dadosFunc);
       setErroCarga(null);
@@ -156,10 +203,12 @@ export default function CRM() {
   useEffect(() => {
     let n = 0;
     const t = setInterval(async () => {
-      if (arrastando.current || document.visibilityState !== "visible") return;
+      if (document.visibilityState !== "visible") return;
+      // Não dispara polling durante o gesto nem com um move sendo persistido.
+      if (arrastando.current || movendo.current > 0) return;
       n += 1;
       if (n % 5 === 0) await sincronizar3d();
-      await carregar();
+      await carregar({ silencioso: true });
     }, 12000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -171,43 +220,79 @@ export default function CRM() {
     const id = Number(r.draggableId);
     const etapa = r.destination.droppableId;
     const ordem = r.destination.index;
-    const neg = negocios.find((n) => n.id === id)!;
+    const neg = negocios.find((n) => n.id === id);
+    if (!neg) return;
     if (etapa === neg.etapa && ordem === neg.ordem) return;
 
     if (etapa === "Perdido") { setPerda({ id, ordem, motivo: "preço" }); return; }
 
-    // otimista
-    setNegocios((prev) => prev!.map((n) => (n.id === id ? { ...n, etapa, ordem } : n)));
-    // Salva ordem no localStorage como fallback contra perda de estado após reload.
-    // Reconstrói a coluna de destino com o card movido inserido na posição `ordem`.
-    const destino = negocios
+    // Reconstrói a coluna de DESTINO com a mesma semântica do drag-and-drop (e do
+    // servidor): remove o card e o reinsere na posição alvo. Espelhar a renumeração
+    // do servidor evita ordens duplicadas e o "salto" do card no refresh seguinte.
+    const origemEtapa = neg.etapa;
+    const destinoIds = negocios
       .filter((n) => n.etapa === etapa && n.id !== id)
       .sort((a, b) => a.ordem - b.ordem)
       .map((n) => n.id);
-    destino.splice(ordem, 0, id);
-    salvarOrdemLocal(etapa, destino);
-    // Atualiza também a coluna de origem (sem o card que saiu).
-    if (neg.etapa !== etapa) {
-      const origem = negocios
-        .filter((n) => n.etapa === neg.etapa && n.id !== id)
-        .sort((a, b) => a.ordem - b.ordem)
-        .map((n) => n.id);
-      salvarOrdemLocal(neg.etapa, origem);
-    }
+    destinoIds.splice(Math.min(ordem, destinoIds.length), 0, id);
+    const origemIds = origemEtapa === etapa ? null : negocios
+      .filter((n) => n.etapa === origemEtapa && n.id !== id)
+      .sort((a, b) => a.ordem - b.ordem)
+      .map((n) => n.id);
+
+    // Atualização otimista: aplica a nova etapa/ordem em TODOS os cards afetados.
+    setNegocios((prev) => {
+      if (!prev) return prev;
+      const ordemDestino = new Map(destinoIds.map((cid, i) => [cid, i]));
+      const ordemOrigem = origemIds ? new Map(origemIds.map((cid, i) => [cid, i])) : null;
+      return prev.map((n) => {
+        if (n.id === id) return { ...n, etapa, ordem: ordemDestino.get(id) ?? ordem };
+        if (n.etapa === etapa && ordemDestino.has(n.id)) return { ...n, ordem: ordemDestino.get(n.id)! };
+        if (ordemOrigem && n.etapa === origemEtapa && ordemOrigem.has(n.id)) return { ...n, ordem: ordemOrigem.get(n.id)! };
+        return n;
+      });
+    });
+
+    // Fallback de ordenação em localStorage (resiste a reload/cold start no Vercel).
+    salvarOrdemLocal(etapa, destinoIds);
+    if (origemIds) salvarOrdemLocal(origemEtapa, origemIds);
+
+    movendo.current += 1;
     try {
       const res = await api.patch<{ projetoCriado: number | null }>(`/negocios/${id}/mover`, { etapa, ordem });
       if (res.projetoCriado) {
         toast("Negócio ganho! Projeto criado com as 10 etapas.");
         if (confirm("Converter o orçamento aprovado em contrato e abrir o projeto agora?")) nav(`/projetos/${res.projetoCriado}`);
       }
-      carregar();
-    } catch (e: any) { toast(e.message, "err"); carregar(); }
+    } catch (e: any) {
+      toast(e?.message || "Não foi possível mover o card.", "err");
+    } finally {
+      movendo.current -= 1;
+      // Janela de carência: por alguns segundos, polls de fundo não sobrescrevem a
+      // UI — evita reversão por leitura de instância ainda desatualizada no Vercel.
+      bloquearPollAte.current = Date.now() + 4000;
+    }
+    // Reconcilia com o servidor (autoritativo) SÓ quando não há mais moves em voo.
+    // Se houver outro move pendente (moves rápidos em sequência), um reconcile
+    // intermediário leria estado parcial e poderia reverter a posição otimista do
+    // move que ainda não persistiu. O último move a terminar faz a reconciliação.
+    if (movendo.current === 0) carregar();
   };
 
   const confirmarPerda = async () => {
     if (!perda) return;
-    await api.patch(`/negocios/${perda.id}/mover`, { etapa: "Perdido", ordem: perda.ordem, motivo_perda: perda.motivo });
-    setPerda(null); carregar(); toast("Negócio movido para Perdido.");
+    movendo.current += 1;
+    try {
+      await api.patch(`/negocios/${perda.id}/mover`, { etapa: "Perdido", ordem: perda.ordem, motivo_perda: perda.motivo });
+      toast("Negócio movido para Perdido.");
+    } catch (e: any) {
+      toast(e?.message || "Não foi possível mover para Perdido.", "err");
+    } finally {
+      movendo.current -= 1;
+      bloquearPollAte.current = Date.now() + 4000;
+    }
+    setPerda(null);
+    if (movendo.current === 0) carregar();
   };
 
   const criar = async () => {
@@ -246,32 +331,40 @@ export default function CRM() {
         } />
 
       <DragDropContext onDragStart={() => { arrastando.current = true; }} onDragEnd={onDragEnd}>
-        <div data-tour="crm-board" className="flex gap-3 overflow-x-auto flex-1 min-h-0 pb-1">
+        <div data-tour="crm-board" className="flex gap-4 overflow-x-auto flex-1 min-h-0 pb-2">
           {ABERTAS.map((etapa) => {
             const cards = porEtapa(etapa);
             const total = cards.reduce((s, n) => s + n.valor_estimado, 0);
             const ganho = etapa === "Fechado (ganho)";
+            const cor = corEtapa(etapa);
             return (
               <Droppable droppableId={etapa} key={etapa}>
                 {(prov, snap) => (
-                  <div className="w-72 shrink-0 flex flex-col min-h-0">
-                    <div className="flex items-center justify-between px-1 mb-2 shrink-0">
+                  <div className="w-[300px] shrink-0 flex flex-col min-h-0 rounded-2xl border border-white/[0.06] bg-surface/40">
+                    <div className="shrink-0 px-3.5 pt-3.5 pb-2.5">
                       <div className="flex items-center gap-2">
-                        <span className={`text-sm font-semibold ${ganho ? "text-champagne" : "text-text"}`}>{etapa}</span>
-                        <span className="text-xs text-muted">{cards.length}</span>
+                        <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: cor, boxShadow: `0 0 10px ${cor}80` }} />
+                        <span className={`text-[13px] font-semibold tracking-tight ${ganho ? "text-champagne" : "text-text"}`}>{etapa}</span>
+                        <span className="rounded-full bg-white/[0.07] px-1.5 py-0.5 text-[10px] font-semibold text-muted tabular-nums">{cards.length}</span>
+                        <span className="ml-auto text-[11px] font-semibold text-muted tabular-nums">{moedaCurta(total)}</span>
                       </div>
-                      <span className="text-[11px] text-muted">{moedaCurta(total)}</span>
+                      <div className="mt-2.5 h-px w-full" style={{ background: `linear-gradient(90deg, ${cor}55, transparent)` }} />
                     </div>
                     <div ref={prov.innerRef} {...prov.droppableProps}
-                      className={`space-y-2 rounded-xl p-2 flex-1 min-h-0 max-h-[30rem] overflow-y-auto transition ${snap.isDraggingOver ? "bg-champagne/5 ring-1 ring-champagne/20" : "bg-surface/40"}`}>
-                      {cards.map((n, i) => (
+                      className={`flex-1 min-h-0 overflow-y-auto px-2.5 pb-3 space-y-2.5 transition-colors ${snap.isDraggingOver ? "bg-champagne/[0.04]" : ""}`}>
+                      {cards.length === 0 && !snap.isDraggingOver && (
+                        <div className="grid place-items-center h-20 rounded-xl border border-dashed border-white/[0.06] text-[11px] text-muted/50">vazio</div>
+                      )}
+                      {cards.map((n, i) => {
+                        const fuVencido = !!n.proximo_follow_up && vencido(n.proximo_follow_up);
+                        return (
                         <Draggable draggableId={String(n.id)} index={i} key={n.id}>
                           {(p, s) => (
                             <div ref={p.innerRef} {...p.draggableProps} {...p.dragHandleProps}
                               onClick={() => setDetalheId(n.id)}
-                              className={`card p-3 cursor-pointer hover:border-champagne/30 ${s.isDragging ? "shadow-glow rotate-1" : ""}`}>
+                              className={`group rounded-xl border border-white/[0.07] bg-surfaceSoft/70 p-3.5 cursor-pointer transition hover:border-champagne/40 hover:bg-surfaceSoft ${s.isDragging ? "shadow-glow ring-1 ring-champagne/40 rotate-1" : ""}`}>
                               <div className="flex items-start justify-between gap-2">
-                                <div className="text-sm font-medium leading-snug">{n.titulo}</div>
+                                <div className="text-[13px] font-semibold leading-snug text-text">{n.titulo}</div>
                                 {n.projeto_3d_id && n.origem === "Orçamento 3D" && (
                                   <span className="shrink-0 rounded-full border border-sky-400/40 bg-sky-500/15 px-1.5 py-0.5 text-[9px] font-semibold text-sky-200">3D</span>
                                 )}
@@ -279,20 +372,25 @@ export default function CRM() {
                                   <span className="shrink-0 rounded-full border border-champagne/40 bg-champagne/15 px-1.5 py-0.5 text-[9px] font-semibold text-champagne">Site</span>
                                 )}
                               </div>
-                              <div className="text-xs text-muted mt-1">{n.empresa_nome || (n.origem === "Orçamento 3D" ? "Estúdio 3D" : n.origem === "Solicitar proposta" ? "Solicitação do site" : "—")}</div>
-                              <div className="flex items-center justify-between mt-2">
-                                <span className="text-champagne text-sm font-semibold">{moedaCurta(n.valor_estimado)}</span>
-                                <span className="text-[10px] text-muted">{n.probabilidade}%</span>
+                              <div className="mt-1 text-[11px] text-muted truncate">{n.empresa_nome || (n.origem === "Orçamento 3D" ? "Estúdio 3D" : n.origem === "Solicitar proposta" ? "Solicitação do site" : "—")}</div>
+                              <div className="mt-3 flex items-center justify-between gap-3">
+                                <span className="text-[15px] font-bold text-champagne tabular-nums">{moedaCurta(n.valor_estimado)}</span>
+                                <div className="flex items-center gap-1.5">
+                                  <div className="h-1.5 w-12 overflow-hidden rounded-full bg-white/10">
+                                    <div className="h-full rounded-full bg-champagne/70" style={{ width: `${Math.max(0, Math.min(100, n.probabilidade))}%` }} />
+                                  </div>
+                                  <span className="text-[10px] text-muted tabular-nums">{n.probabilidade}%</span>
+                                </div>
                               </div>
                               {n.proximo_follow_up && (
-                                <div className={`mt-2 text-[11px] flex items-center gap-1 ${vencido(n.proximo_follow_up) ? "text-red-400" : "text-muted"}`}>
-                                  ⏰ {vencido(n.proximo_follow_up) ? "Follow-up vencido" : "Follow-up"} {data(n.proximo_follow_up)}
+                                <div className={`mt-2.5 flex items-center gap-1.5 text-[11px] ${fuVencido ? "text-red-300" : "text-muted"}`}>
+                                  <span>⏰</span>{fuVencido ? "Follow-up vencido" : "Follow-up"} {data(n.proximo_follow_up)}
                                 </div>
                               )}
                             </div>
                           )}
                         </Draggable>
-                      ))}
+                      );})}
                       {prov.placeholder}
                     </div>
                   </div>
@@ -373,18 +471,24 @@ export default function CRM() {
 
 function PerdidoColumn({ cards, onOpen }: { cards: Negocio[]; onOpen: (id: number) => void }) {
   if (cards.length === 0) return null;
+  const cor = corEtapa("Perdido");
   return (
-    <div className="w-72 shrink-0">
-      <div className="flex items-center justify-between px-1 mb-2">
-        <span className="text-sm font-semibold text-red-300/80">Perdido</span>
-        <span className="text-xs text-muted">{cards.length}</span>
+    <div className="w-[300px] shrink-0 flex flex-col min-h-0 rounded-2xl border border-white/[0.06] bg-surface/40">
+      <div className="shrink-0 px-3.5 pt-3.5 pb-2.5">
+        <div className="flex items-center gap-2">
+          <span className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: cor, boxShadow: `0 0 10px ${cor}80` }} />
+          <span className="text-[13px] font-semibold tracking-tight text-red-300/90">Perdido</span>
+          <span className="rounded-full bg-white/[0.07] px-1.5 py-0.5 text-[10px] font-semibold text-muted tabular-nums">{cards.length}</span>
+        </div>
+        <div className="mt-2.5 h-px w-full" style={{ background: `linear-gradient(90deg, ${cor}55, transparent)` }} />
       </div>
-      <div className="space-y-2 rounded-xl p-2 bg-surface/40 min-h-[120px]">
+      <div className="flex-1 min-h-0 overflow-y-auto px-2.5 pb-3 space-y-2.5">
         {cards.map((n) => (
-          <div key={n.id} onClick={() => onOpen(n.id)} className="card p-3 cursor-pointer opacity-70 hover:opacity-100">
-            <div className="text-sm font-medium">{n.titulo}</div>
-            <div className="text-xs text-muted mt-1">{n.empresa_nome}</div>
-            {n.motivo_perda && <Badge tone="red">{n.motivo_perda}</Badge>}
+          <div key={n.id} onClick={() => onOpen(n.id)}
+            className="rounded-xl border border-white/[0.07] bg-surfaceSoft/50 p-3.5 cursor-pointer opacity-70 transition hover:opacity-100 hover:border-red-400/30">
+            <div className="text-[13px] font-semibold leading-snug text-text">{n.titulo}</div>
+            <div className="mt-1 text-[11px] text-muted truncate">{n.empresa_nome}</div>
+            {n.motivo_perda && <div className="mt-2"><Badge tone="red">{n.motivo_perda}</Badge></div>}
           </div>
         ))}
       </div>

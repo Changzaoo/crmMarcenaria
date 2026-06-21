@@ -3,6 +3,7 @@ import { db } from "../db/index.js";
 import { criarProjetoComEtapas } from "../lib/projetoFactory.js";
 import { calcularOrcamento } from "../lib/calc.js";
 import { sincronizarFunil3d, sincronizarFunil3dAuto } from "../storage/funil3dSync.js";
+import { persistFirebaseSnapshot } from "../data/firebaseStore.js";
 
 const r = Router();
 
@@ -40,13 +41,17 @@ const baseSelect = `
   LEFT JOIN contatos c ON c.id = n.contato_id
 `;
 
-r.get("/", async (_req, res) => {
+r.get("/", async (req, res) => {
   // Sincroniza Orçamentos 3D automaticamente (throttled, best-effort) ANTES de
   // listar: garante que leads novos do Estúdio 3D já apareçam no funil — e nas
   // notificações in-app, que fazem polling desta rota — mesmo sem o CRM aberto.
   // É idempotente (vínculo por projeto_3d_id) e nunca derruba a listagem.
-  await sincronizarFunil3dAuto().catch(() => {});
-  res.json(db.prepare(baseSelect + " ORDER BY n.ordem, n.criado_em DESC").all());
+  const out = await sincronizarFunil3dAuto().catch(() => null);
+  // Se a auto-sync criou negócios novos, persiste o snapshot agora: GET não passa
+  // pelo middleware de persistência, então sem isto uma re-hidratação posterior
+  // (outra instância no Vercel) descartaria os leads recém-importados do 3D.
+  if (out && out.criados) await persistFirebaseSnapshot(req.firebaseToken).catch(() => {});
+  res.json(db.prepare(baseSelect + " ORDER BY n.ordem, n.criado_em, n.id").all());
 });
 
 r.get("/:id", (req, res) => {
@@ -90,29 +95,38 @@ r.patch("/:id/mover", (req, res) => {
     return res.status(400).json({ erro: "Informe o motivo da perda.", precisaMotivo: true });
   }
 
-  const fechadoEm = (etapa === "Fechado (ganho)" || etapa === "Perdido") ? new Date().toISOString().slice(0, 19).replace("T", " ") : null;
+  // Só carimba fechado_em na TRANSIÇÃO para Fechado/Perdido. Reordenar um card que
+  // já está nessas colunas preserva a data original (via COALESCE) — senão o
+  // relatório de conversão jogaria o ganho/perda para o mês do reorder.
+  const fechadoEm = ((etapa === "Fechado (ganho)" || etapa === "Perdido") && neg.etapa !== etapa)
+    ? new Date().toISOString().slice(0, 19).replace("T", " ")
+    : null;
+  const idMovido = Number(req.params.id);
 
   db.transaction(() => {
-    // Move o card para a nova etapa/posição
-    db.prepare("UPDATE negocios SET etapa=?, ordem=?, motivo_perda=?, fechado_em=COALESCE(?, fechado_em) WHERE id=?")
-      .run(etapa, ordem ?? 0, etapa === "Perdido" ? motivo_perda : null, fechadoEm, req.params.id);
+    // 1) Atualiza etapa/perda/fechado do card. A `ordem` definitiva é recalculada
+    //    a seguir reconstruindo a coluna inteira.
+    db.prepare("UPDATE negocios SET etapa=?, motivo_perda=?, fechado_em=COALESCE(?, fechado_em) WHERE id=?")
+      .run(etapa, etapa === "Perdido" ? motivo_perda : null, fechadoEm, idMovido);
 
-    // Renumera todos os cards da coluna destino para eliminar colisões de ordem.
-    // Em caso de empate na posição, o card movido vence (cai exatamente no índice
-    // solicitado, empurrando o que estava ali para baixo); demais empates por criado_em.
-    const cards = db.prepare(
-      `SELECT id FROM negocios WHERE etapa=?
-       ORDER BY (CASE WHEN id=? THEN ? ELSE ordem END),
-                (CASE WHEN id=? THEN 0 ELSE 1 END),
-                criado_em`
-    ).all(etapa, req.params.id, ordem ?? 0, req.params.id);
+    // 2) Reconstrói a coluna de DESTINO com a MESMA semântica do drag-and-drop:
+    //    pega a lista atual SEM o card movido e o reinsere exatamente na posição
+    //    solicitada. Isso evita o off-by-one que acontecia ao mover um card para
+    //    baixo dentro da mesma coluna (o desempate por `ordem` antiga colocava o
+    //    card uma posição acima da pretendida, fazendo-o "saltar" no refresh).
+    const destino = db.prepare("SELECT id FROM negocios WHERE etapa=? AND id<>? ORDER BY ordem, criado_em, id")
+      .all(etapa, idMovido).map((c) => c.id);
+    const pos = Math.max(0, Math.min(Number(ordem) || 0, destino.length));
+    destino.splice(pos, 0, idMovido);
     const upd = db.prepare("UPDATE negocios SET ordem=? WHERE id=?");
-    cards.forEach((c, i) => upd.run(i, c.id));
+    destino.forEach((cid, i) => upd.run(i, cid));
 
-    // Se o card saiu de outra etapa, renumera a coluna de origem também.
+    // 3) Se o card saiu de outra etapa, renumera a coluna de ORIGEM (0..n) para
+    //    eliminar buracos e colisões de ordem.
     if (neg.etapa !== etapa) {
-      const origem = db.prepare("SELECT id FROM negocios WHERE etapa=? ORDER BY ordem, criado_em").all(neg.etapa);
-      origem.forEach((c, i) => upd.run(i, c.id));
+      const origem = db.prepare("SELECT id FROM negocios WHERE etapa=? AND id<>? ORDER BY ordem, criado_em, id")
+        .all(neg.etapa, idMovido).map((c) => c.id);
+      origem.forEach((cid, i) => upd.run(i, cid));
     }
   })();
 
