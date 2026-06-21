@@ -3,18 +3,18 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Spinner } from "../../components/ui";
 import { useAuth } from "../../auth/AuthContext";
 import { api } from "../../lib/api";
-import Orcamento3DApp from "./Orcamento3DApp";
+import Orcamento3DApp from "../studio3d-core/Orcamento3DApp";
 import {
   actions,
   orc3dStore,
   openStudio,
   closeStudio,
   useStudioOpen,
-} from "./useOrcamento3DStore";
-import { fromCrmProjectDoc } from "./crmDocSync";
-import type { CrmProjectDoc } from "./crmPublicApi";
-import { estimateProject } from "./pricingEngine";
-import type { Project3D, ProjectStatus } from "./types";
+} from "../studio3d-core/useOrcamento3DStore";
+import { fromCrmProjectDoc } from "../studio3d-core/crmDocSync";
+import type { CrmProjectDoc } from "../studio3d-core/crmPublicApi";
+import { estimateProject } from "../studio3d-core/pricingEngine";
+import type { Project3D, ProjectStatus } from "../studio3d-core/types";
 
 type Modo = "publico" | "arquiteto" | "ver";
 

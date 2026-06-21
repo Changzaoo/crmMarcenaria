@@ -1,0 +1,3 @@
+[submodule "client/src/features/studio3d-core"]
+	path = client/src/features/studio3d-core
+	url = https://github.com/Changzaoo/studio3d.git

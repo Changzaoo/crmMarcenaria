@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion, MotionValue, useMotionValueEvent } from "framer-motion";
 import { isMobileViewport } from "../../lib/webgl";
-import { openStudio } from "./useOrcamento3DStore";
+import { openStudio } from "../studio3d-core/useOrcamento3DStore";
 
 /* ============================================================
    Orcamento3DEntry — chamada premium que surge quando a primeira
