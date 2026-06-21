@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Sistema de gestão LINEAR — CRM + Operação de Marcenaria",
+  "description": "Sistema de gestão NEXUS — CRM + Operação de Marcenaria",
   "scripts": {
     "dev": "concurrently -n server,client -c magenta,cyan \"npm:dev:server\" \"npm:dev:client\"",
     "dev:server": "npm --prefix server run dev",

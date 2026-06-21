@@ -1,5 +1,7 @@
 import { Router } from "express";
 import { heartbeat, leave, pushDoc, getState } from "../lib/collab3d.js";
+import { rateLimit } from "../lib/rateLimit.js";
+import { validarLead, LEAD_ORIGINS } from "../shared/contract.js";
 import {
   criarLeadEProjeto,
   lerProjeto,
@@ -12,6 +14,13 @@ import {
 // que monta o ambiente. Montadas em /api/public ANTES do middleware de auth.
 const r = Router();
 
+// Criação de lead é o alvo natural de abuso/spam — limite estrito por IP.
+const limiteCriacaoLead = rateLimit({
+  windowMs: 60_000,
+  max: 12,
+  message: "Você enviou muitas solicitações. Aguarde um minuto e tente novamente.",
+});
+
 const asyncRoute = (fn) => (req, res) =>
   fn(req, res).catch((e) => {
     console.error("[public-3d]", req.method, req.originalUrl, "->", e?.stack || e);
@@ -21,13 +30,12 @@ const asyncRoute = (fn) => (req, res) =>
 // ---------- Lead obrigatório antes do 3D ----------
 r.post(
   "/leads-3d",
+  limiteCriacaoLead,
   asyncRoute(async (req, res) => {
     const b = req.body || {};
-    if (!b.nome || !b.email || !b.whatsapp) {
-      return res.status(400).json({ erro: "Preencha nome, e-mail e WhatsApp." });
-    }
-    if (!b.aceite) {
-      return res.status(400).json({ erro: "É necessário aceitar o contato da equipe." });
+    const valido = validarLead(b);
+    if (!valido.ok) {
+      return res.status(400).json({ erro: valido.motivo });
     }
     const { leadId, projetoId } = await criarLeadEProjeto(b);
     res.json({ leadId, projetoId });
@@ -37,13 +45,12 @@ r.post(
 // ---------- Solicitar proposta (formulário do site → fileira Lead) ----------
 r.post(
   "/solicitar-proposta",
+  limiteCriacaoLead,
   asyncRoute(async (req, res) => {
     const b = req.body || {};
-    if (!b.nome || !b.email || !b.whatsapp) {
-      return res.status(400).json({ erro: "Preencha nome, e-mail e WhatsApp." });
-    }
-    if (!b.aceite) {
-      return res.status(400).json({ erro: "É necessário aceitar o contato da equipe." });
+    const valido = validarLead(b);
+    if (!valido.ok) {
+      return res.status(400).json({ erro: valido.motivo });
     }
     const { leadId } = await criarLeadEProjeto({
       nome: b.nome,
@@ -53,7 +60,7 @@ r.post(
       tipo_projeto: b.tipo_projeto,
       descricao: b.mensagem || b.descricao,
       aceite: !!b.aceite,
-      origem: "Solicitar proposta",
+      origem: LEAD_ORIGINS.solicitarProposta,
       doc: {},
     });
     res.json({ leadId });

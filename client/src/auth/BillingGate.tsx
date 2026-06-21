@@ -65,7 +65,7 @@ export default function BillingGate({ children }: { children: ReactNode }) {
           </h1>
           <p className="text-sm text-muted mb-6">
             {expirado
-              ? "Para continuar usando o LINEAR e manter seus dados ativos, assine o plano mensal. Leva 2 minutos pelo Pix."
+              ? "Para continuar usando o NEXUS e manter seus dados ativos, assine o plano mensal. Leva 2 minutos pelo Pix."
               : "Sua assinatura está pendente ou foi cancelada. Reative para voltar a acessar o sistema."}
           </p>
           <a

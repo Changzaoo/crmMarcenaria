@@ -3,7 +3,7 @@ import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { existsSync, mkdirSync } from "fs";
 import { tmpdir } from "os";
-import { SCHEMA, CATEGORIAS_PADRAO, FUNCIONARIOS_PADRAO, inferirModelo } from "./schema.js";
+import { SCHEMA, INDICES, CATEGORIAS_PADRAO, FUNCIONARIOS_PADRAO, inferirModelo } from "./schema.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.VERCEL ? join(tmpdir(), "linear-crm") : join(__dirname, "..", "..", "..", "data");
@@ -25,6 +25,7 @@ const categoriasJaExistia = tabelaJaExistia("categorias");
 const funcionariosJaExistia = tabelaJaExistia("funcionarios");
 
 db.exec(SCHEMA);
+db.exec(INDICES);
 
 // Migrações idempotentes para colunas adicionadas após a 1ª versão do schema.
 const leadCols = db.prepare("PRAGMA table_info(leads_3d)").all().map((c) => c.name);
@@ -68,7 +69,7 @@ const cfg = db.prepare("SELECT id FROM configuracoes WHERE id = 1").get();
 if (!cfg) {
   db.prepare(
     `INSERT INTO configuracoes (id, empresa_nome, empresa_cnpj, empresa_telefone, empresa_email, empresa_endereco, empresa_slogan)
-     VALUES (1, 'LINEAR — Marcenaria Corporativa', '00.000.000/0001-00', '(11) 90000-0000', 'contato@linear.com.br', 'São Paulo — SP', 'Mobiliário corporativo sob medida de alto padrão')`
+     VALUES (1, 'NEXUS — Marcenaria Corporativa', '00.000.000/0001-00', '(11) 90000-0000', 'contato@nexusmarcenaria.com.br', 'São Paulo — SP', 'Mobiliário corporativo sob medida de alto padrão')`
   ).run();
 }
 

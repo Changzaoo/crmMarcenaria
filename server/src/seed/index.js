@@ -268,8 +268,8 @@ export function seed() {
 
     // ---------- TEMPLATES WHATSAPP ----------
     const insTpl = db.prepare("INSERT INTO templates_whatsapp (nome, mensagem) VALUES (?,?)");
-    insTpl.run("Primeiro contato", "Olá {contato}, aqui é da LINEAR — Marcenaria Corporativa. Recebemos seu interesse em mobiliário sob medida para a {empresa}. Podemos agendar uma conversa?");
-    insTpl.run("Envio de proposta", "Olá {contato}, segue a proposta da LINEAR para o projeto da {empresa}. Fico à disposição para detalhar cada ambiente. Qualquer dúvida, estou por aqui!");
+    insTpl.run("Primeiro contato", "Olá {contato}, aqui é da NEXUS — Marcenaria Corporativa. Recebemos seu interesse em mobiliário sob medida para a {empresa}. Podemos agendar uma conversa?");
+    insTpl.run("Envio de proposta", "Olá {contato}, segue a proposta da NEXUS para o projeto da {empresa}. Fico à disposição para detalhar cada ambiente. Qualquer dúvida, estou por aqui!");
     insTpl.run("Cobrança de retorno", "Olá {contato}, tudo bem? Passando para saber se conseguiu avaliar nossa proposta para a {empresa}. Posso ajudar com algum ajuste?");
     insTpl.run("Agendamento de medição", "Olá {contato}, podemos agendar a visita técnica para medição na {empresa}? Temos disponibilidade nesta semana.");
   });

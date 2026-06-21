@@ -4,6 +4,7 @@ import { seed } from "./seed/index.js";
 import { mountRoutes } from "./routes/index.js";
 import public3d from "./routes/public3d.js";
 import kiwifyWebhook from "./routes/kiwifyWebhook.js";
+import { rateLimit, startRateLimitSweeper } from "./lib/rateLimit.js";
 
 // Popula o banco local com seed de demonstração quando ainda não existe.
 // Em produção, o snapshot do Firebase substitui esse seed no primeiro request autenticado.
@@ -44,10 +45,26 @@ export function createApp() {
     res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
     res.setHeader("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()");
     res.setHeader("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
+    // HSTS: força HTTPS por 1 ano (Vercel já serve HTTPS). includeSubDomains + preload.
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
     next();
   });
 
-  app.use(express.json({ limit: "25mb" }));
+  // Limite global generoso por IP — barra burst/abuso sem atrapalhar o polling
+  // da sessão 3D nem o uso normal do app autenticado.
+  startRateLimitSweeper();
+  app.use("/api", rateLimit({ windowMs: 60_000, max: 600 }));
+
+  // express.json com captura do corpo cru (req.rawBody) — necessário para
+  // validar a assinatura HMAC do webhook da Kiwify sobre o payload original.
+  app.use(
+    express.json({
+      limit: "25mb",
+      verify: (req, _res, buf) => {
+        req.rawBody = buf;
+      },
+    })
+  );
 
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
 

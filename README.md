@@ -1,6 +1,6 @@
-# LINEAR — Sistema de Gestão
+# NEXUS — Sistema de Gestão
 
-CRM + operação para a **LINEAR — Marcenaria Corporativa**. Roda local ou na Vercel, com autenticação Firebase por email/senha, dados persistidos no Firebase Realtime Database e imagens no Supabase Storage.
+CRM + operação para a **NEXUS — Marcenaria Corporativa**. Roda local ou na Vercel, com autenticação Firebase por email/senha, dados persistidos no Firebase Realtime Database e imagens no Supabase Storage.
 
 Funil comercial (Kanban), clientes B2B, orçamentador por ambiente/peça com proposta em PDF, projetos com as 10 etapas oficiais, agenda, financeiro e pós-venda — tudo com a identidade visual escura premium da marca.
 
@@ -141,7 +141,7 @@ linear-gestao/
 2. **Funil comercial (CRM)** — Kanban drag-and-drop (Lead → … → Fechado/Perdido), timeline de interações, follow-ups vencidos em vermelho, templates de WhatsApp (`wa.me`). Marcar **Ganho** cria o projeto automaticamente.
 3. **Clientes e contatos** — cadastro B2B, múltiplos contatos, vínculo N:N com arquitetos/especificadores, histórico e total contratado.
 4. **Projetos e produção** — 10 etapas oficiais com checklist por etapa, % de progresso, Ordem de Serviço imprimível.
-5. **Orçamentador** — ambientes → itens → materiais do catálogo, perda/margem/impostos/frete configuráveis, custo × preço × lucro por ambiente, versões e **proposta em PDF** com a identidade LINEAR.
+5. **Orçamentador** — ambientes → itens → materiais do catálogo, perda/margem/impostos/frete configuráveis, custo × preço × lucro por ambiente, versões e **proposta em PDF** com a identidade NEXUS.
 6. **Catálogo de materiais** — CRUD de insumos (chapas, fitas, ferragens, LED, pedras, mão de obra) com seed realista.
 7. **Agenda** — visão mensal + lista, conflitos do mesmo dia destacados.
 8. **Financeiro** — parcelas por projeto (a receber / recebido / atrasado), totais do mês.

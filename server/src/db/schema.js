@@ -256,7 +256,38 @@ CREATE TABLE IF NOT EXISTS projetos_3d (
 );
 `;
 
-// Etapas oficiais da LINEAR
+// Índices de performance — idempotentes (IF NOT EXISTS), executados a cada subida.
+// Cobrem os caminhos de leitura quentes: junções por FK, agrupamento do funil por
+// etapa, follow-ups por data, parcelas por status/vencimento e leads do Estúdio 3D.
+export const INDICES = `
+CREATE INDEX IF NOT EXISTS idx_contatos_empresa        ON contatos(empresa_id);
+CREATE INDEX IF NOT EXISTS idx_negocios_etapa          ON negocios(etapa);
+CREATE INDEX IF NOT EXISTS idx_negocios_empresa        ON negocios(empresa_id);
+CREATE INDEX IF NOT EXISTS idx_negocios_contato        ON negocios(contato_id);
+CREATE INDEX IF NOT EXISTS idx_interacoes_negocio      ON interacoes(negocio_id);
+CREATE INDEX IF NOT EXISTS idx_interacoes_followup     ON interacoes(proximo_follow_up);
+CREATE INDEX IF NOT EXISTS idx_orcamentos_negocio      ON orcamentos(negocio_id);
+CREATE INDEX IF NOT EXISTS idx_orcamentos_empresa      ON orcamentos(empresa_id);
+CREATE INDEX IF NOT EXISTS idx_orc_ambientes_orcamento ON orcamento_ambientes(orcamento_id);
+CREATE INDEX IF NOT EXISTS idx_orc_itens_ambiente      ON orcamento_itens(ambiente_id);
+CREATE INDEX IF NOT EXISTS idx_orc_item_mat_item       ON orcamento_item_materiais(item_id);
+CREATE INDEX IF NOT EXISTS idx_projetos_negocio        ON projetos(negocio_id);
+CREATE INDEX IF NOT EXISTS idx_projetos_empresa        ON projetos(empresa_id);
+CREATE INDEX IF NOT EXISTS idx_projetos_status         ON projetos(status);
+CREATE INDEX IF NOT EXISTS idx_proj_etapas_projeto     ON projeto_etapas(projeto_id);
+CREATE INDEX IF NOT EXISTS idx_checklist_etapa         ON etapa_checklist(etapa_id);
+CREATE INDEX IF NOT EXISTS idx_agenda_data             ON eventos_agenda(data);
+CREATE INDEX IF NOT EXISTS idx_agenda_projeto          ON eventos_agenda(projeto_id);
+CREATE INDEX IF NOT EXISTS idx_agenda_negocio          ON eventos_agenda(negocio_id);
+CREATE INDEX IF NOT EXISTS idx_parcelas_projeto        ON parcelas(projeto_id);
+CREATE INDEX IF NOT EXISTS idx_parcelas_status         ON parcelas(status);
+CREATE INDEX IF NOT EXISTS idx_parcelas_vencimento     ON parcelas(vencimento);
+CREATE INDEX IF NOT EXISTS idx_leads3d_status          ON leads_3d(status);
+CREATE INDEX IF NOT EXISTS idx_leads3d_criado          ON leads_3d(criado_em);
+CREATE INDEX IF NOT EXISTS idx_projetos3d_lead         ON projetos_3d(lead_id);
+`;
+
+// Etapas oficiais da NEXUS
 export const ETAPAS_PROJETO = [
   "Briefing técnico",
   "Análise técnica",

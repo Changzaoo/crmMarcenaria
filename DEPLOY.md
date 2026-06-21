@@ -1,4 +1,4 @@
-# LINEAR — Guia de publicação (falta só isto)
+# NEXUS — Guia de publicação (falta só isto)
 
 Status: **pronto pra vender, falta deploy.** Código de cobrança (Kiwify/Pix) e landing já implementados.
 
@@ -12,9 +12,13 @@ Status: **pronto pra vender, falta deploy.** Código de cobrança (Kiwify/Pix) e
 ## 2. Kiwify (cobrança por Pix)
 1. Criar produto de **assinatura mensal R$ 197**.
 2. Copiar o **link de checkout** → vira a env `KIWIFY_CHECKOUT_URL`.
-3. Criar um token secreto qualquer → vira a env `KIWIFY_WEBHOOK_TOKEN`.
+3. **Segurança do webhook (recomendado):** defina `KIWIFY_WEBHOOK_SECRET` com o
+   *token/segredo de assinatura* da Kiwify. O backend valida a **assinatura HMAC**
+   (`?signature=...`, SHA1/SHA256) sobre o corpo cru — bem mais seguro que um token
+   simples. Como alternativa/legado, ainda é aceito `KIWIFY_WEBHOOK_TOKEN`
+   (`?token=...`); se nenhum dos dois for definido, o webhook fica aberto (apenas dev).
 4. Em Apps/Webhooks da Kiwify, apontar o webhook para:
-   `https://SEU-BACKEND/api/public/kiwify?token=SEU_TOKEN`
+   `https://SEU-BACKEND/api/public/kiwify`
    (eventos: compra aprovada, assinatura renovada, reembolso, cancelamento).
 
 ## 3. Deploy
@@ -27,7 +31,8 @@ Status: **pronto pra vender, falta deploy.** Código de cobrança (Kiwify/Pix) e
 |---|---|
 | `FIREBASE_PROJECT_ID` | ID do projeto Firebase |
 | `KIWIFY_CHECKOUT_URL` | link de checkout da Kiwify |
-| `KIWIFY_WEBHOOK_TOKEN` | token secreto do webhook |
+| `KIWIFY_WEBHOOK_SECRET` | segredo p/ validar a assinatura HMAC do webhook (recomendado) |
+| `KIWIFY_WEBHOOK_TOKEN` | token simples do webhook (alternativa/legado) |
 | `TRIAL_DAYS` | 14 (opcional) |
 | `ALLOWED_ORIGINS` | URL do frontend na Vercel |
 
