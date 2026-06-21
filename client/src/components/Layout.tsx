@@ -2,6 +2,7 @@ import { NavLink, useLocation } from "react-router-dom";
 import { ReactNode } from "react";
 import { motion } from "framer-motion";
 import {
+  BarChart3,
   Box,
   CalendarDays,
   FileText,
@@ -34,6 +35,7 @@ const NAV = [
   { to: "/funcionarios", label: "Funcionários", icon: UserCog },
   { to: "/agenda", label: "Agenda", icon: CalendarDays },
   { to: "/financeiro", label: "Financeiro", icon: WalletCards },
+  { to: "/relatorios", label: "Relatórios", icon: BarChart3 },
   { to: "/pos-venda", label: "Pós-venda", icon: HeartHandshake },
   { to: "/whatsapp", label: "WhatsApp", icon: MessageCircle },
   { to: "/config", label: "Configurações", icon: Settings },

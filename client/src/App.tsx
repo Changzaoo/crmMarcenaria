@@ -20,6 +20,7 @@ import Whatsapp from "./pages/Whatsapp";
 import Agenda from "./pages/Agenda";
 import Financeiro from "./pages/Financeiro";
 import PosVenda from "./pages/PosVenda";
+import Relatorios from "./pages/Relatorios";
 import Configuracoes from "./pages/Configuracoes";
 
 // Estúdio 3D — carregado sob demanda (three.js fica fora do bundle inicial).
@@ -74,6 +75,7 @@ function AuthedApp() {
                 <Route path="/agenda" element={<Agenda />} />
                 <Route path="/financeiro" element={<Financeiro />} />
                 <Route path="/pos-venda" element={<PosVenda />} />
+                <Route path="/relatorios" element={<Relatorios />} />
                 <Route path="/config" element={<Configuracoes />} />
                 {/* Suporte 3D / Arquiteto */}
                 <Route path="/suporte-3d" element={<ArchitectSupportPage />} />

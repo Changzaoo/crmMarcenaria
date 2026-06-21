@@ -95,50 +95,96 @@ const updateNeg = db.prepare(
   `UPDATE negocios SET titulo = ?, valor_estimado = ?, dados_3d = ? WHERE id = ?`
 );
 
-/** Sincroniza todos os leads 3D elegíveis com o funil. Idempotente. */
+/**
+ * Sincroniza todos os leads 3D elegíveis com o funil comercial.
+ *
+ * IDEMPOTÊNCIA: o vínculo é o `projeto_3d_id` (UUID do projeto do Estúdio 3D).
+ * Antes de inserir consultamos `selExistente` por esse id; se já existe um
+ * negócio, apenas ATUALIZAMOS (título/valor/resumo) — nunca criamos um segundo
+ * card. Rodar esta função 1 ou N vezes produz o mesmo conjunto de negócios.
+ * Por isso é seguro chamá-la sob demanda (botão/refresh) e automaticamente.
+ *
+ * RESILIÊNCIA: cada lead é processado isoladamente em try/catch — um lead com
+ * doc corrompido não aborta a sincronização dos demais.
+ */
 export async function sincronizarFunil3d() {
   const leads = await listarLeads();
   let criados = 0;
   let atualizados = 0;
 
   for (const leadResumo of leads) {
-    if (!leadResumo.projeto_id) continue;
-    const full = await obterLead(leadResumo.id);
-    if (!full) continue;
-    const lead = { ...leadResumo, ...full };
-    const projeto = full.projeto || null;
-    const doc = parseDoc(projeto);
+    try {
+      if (!leadResumo.projeto_id) continue;
+      const full = await obterLead(leadResumo.id);
+      if (!full) continue;
+      const lead = { ...leadResumo, ...full };
+      const projeto = full.projeto || null;
+      const doc = parseDoc(projeto);
 
-    if (!elegivel(lead, doc)) continue;
+      if (!elegivel(lead, doc)) continue;
 
-    const dados = montarDados3d(lead, projeto, doc);
-    const proposta = isProposta(lead);
-    const padrao = proposta ? `Proposta — ${lead.nome || "Cliente"}` : `Orçamento 3D — ${lead.nome || "Cliente"}`;
-    const titulo = (doc.projectName || padrao).slice(0, 120);
-    const valor = valorEstimado(doc, dados);
-    const dadosJson = JSON.stringify(dados);
+      const dados = montarDados3d(lead, projeto, doc);
+      const proposta = isProposta(lead);
+      const padrao = proposta ? `Proposta — ${lead.nome || "Cliente"}` : `Orçamento 3D — ${lead.nome || "Cliente"}`;
+      const titulo = (doc.projectName || padrao).slice(0, 120);
+      const valor = valorEstimado(doc, dados);
+      const dadosJson = JSON.stringify(dados);
 
-    const existente = selExistente.get(lead.projeto_id);
-    if (existente) {
-      updateNeg.run(titulo, valor, dadosJson, existente.id);
-      atualizados++;
-    } else {
-      const ordem = maxOrdem.get("Lead").o;
-      const prob = lead.arquiteto_solicitado ? 50 : 30;
-      insertNeg.run(
-        titulo,
-        lead.tipo_projeto || (proposta ? "Solicitação" : "Orçamento 3D"),
-        lead.origem || "Orçamento 3D",
-        "Lead",
-        valor,
-        prob,
-        ordem,
-        lead.projeto_id,
-        dadosJson
-      );
-      criados++;
+      const existente = selExistente.get(lead.projeto_id);
+      if (existente) {
+        updateNeg.run(titulo, valor, dadosJson, existente.id);
+        atualizados++;
+      } else {
+        const ordem = maxOrdem.get("Lead").o;
+        const prob = lead.arquiteto_solicitado ? 50 : 30;
+        insertNeg.run(
+          titulo,
+          lead.tipo_projeto || (proposta ? "Solicitação" : "Orçamento 3D"),
+          lead.origem || "Orçamento 3D",
+          "Lead",
+          valor,
+          prob,
+          ordem,
+          lead.projeto_id,
+          dadosJson
+        );
+        criados++;
+      }
+    } catch (e) {
+      console.error("[funil3dSync] lead", leadResumo?.id, "->", e?.message || e);
     }
   }
 
   return { criados, atualizados, total: criados + atualizados, em: agoraSqlite() };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Sincronização automática (throttled)                              */
+/* ------------------------------------------------------------------ */
+// Permite "pendurar" a sincronização na própria listagem de negócios/dashboard
+// (ver routes/negocios.js GET /), para que leads novos do Estúdio 3D apareçam no
+// funil — e nas notificações in-app, que fazem polling de /negocios — SEM exigir
+// que a página do CRM esteja aberta. Para não martelar o Supabase a cada request,
+// só roda no máximo a cada AUTO_SYNC_MS. É best-effort: erros não derrubam a rota.
+const AUTO_SYNC_MS = 30000;
+let ultimaSync = 0;
+let syncEmAndamento = null;
+
+export async function sincronizarFunil3dAuto({ force = false } = {}) {
+  const agora = Date.now();
+  if (!force && agora - ultimaSync < AUTO_SYNC_MS) return null;
+  // Coalescing: se já há uma sync rodando, todos aguardam a mesma promessa.
+  if (syncEmAndamento) return syncEmAndamento;
+  ultimaSync = agora;
+  syncEmAndamento = (async () => {
+    try {
+      return await sincronizarFunil3d();
+    } catch (e) {
+      console.error("[funil3dSync] auto ->", e?.message || e);
+      return null;
+    } finally {
+      syncEmAndamento = null;
+    }
+  })();
+  return syncEmAndamento;
 }

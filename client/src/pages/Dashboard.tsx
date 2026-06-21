@@ -5,6 +5,7 @@ import { api } from "../lib/api";
 import { moeda, moedaCurta, data, vencido } from "../lib/format";
 import { Dashboard as Dash } from "../types";
 import { PageHeader, Card, Badge, Spinner } from "../components/ui";
+import { FunnelChart } from "../components/charts";
 
 export default function Dashboard() {
   const nav = useNavigate();
@@ -19,7 +20,6 @@ export default function Dashboard() {
     { label: "Instalações (14 dias)", value: String(d.instalacoes), to: "/agenda" },
     { label: "Contas a receber", value: moeda(d.aReceber), sub: d.atrasado > 0 ? `${moeda(d.atrasado)} atrasado` : "em dia", tone: d.atrasado > 0 ? "text-red-300" : "text-emerald-300", to: "/financeiro" },
   ];
-  const maxValor = Math.max(...d.funil.map((f) => f.valor), 1);
 
   return (
     <div>
@@ -42,21 +42,14 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <Card className="lg:col-span-2">
-          <h3 className="font-semibold mb-4">Funil comercial</h3>
-          <div className="space-y-3">
-            {d.funil.map((f) => (
-              <div key={f.etapa}>
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-muted">{f.etapa} <span className="text-xs">({f.qtd})</span></span>
-                  <span className="text-champagne font-medium">{moedaCurta(f.valor)}</span>
-                </div>
-                <div className="h-2 rounded-full bg-surfaceSoft overflow-hidden">
-                  <motion.div className="h-full bg-gradient-to-r from-bronze to-champagne rounded-full"
-                    initial={{ width: 0 }} animate={{ width: `${(f.valor / maxValor) * 100}%` }} transition={{ duration: 0.6 }} />
-                </div>
-              </div>
-            ))}
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold">Funil comercial</h3>
+            <Link to="/relatorios" className="text-xs text-champagne hover:underline">Ver relatórios →</Link>
           </div>
+          <FunnelChart
+            stages={d.funil.map((f) => ({ label: f.etapa, value: f.valor, count: f.qtd }))}
+            formatValue={moedaCurta}
+          />
         </Card>
 
         <Card>

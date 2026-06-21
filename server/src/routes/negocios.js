@@ -2,7 +2,7 @@ import { Router } from "express";
 import { db } from "../db/index.js";
 import { criarProjetoComEtapas } from "../lib/projetoFactory.js";
 import { calcularOrcamento } from "../lib/calc.js";
-import { sincronizarFunil3d } from "../storage/funil3dSync.js";
+import { sincronizarFunil3d, sincronizarFunil3dAuto } from "../storage/funil3dSync.js";
 
 const r = Router();
 
@@ -40,7 +40,12 @@ const baseSelect = `
   LEFT JOIN contatos c ON c.id = n.contato_id
 `;
 
-r.get("/", (_req, res) => {
+r.get("/", async (_req, res) => {
+  // Sincroniza Orçamentos 3D automaticamente (throttled, best-effort) ANTES de
+  // listar: garante que leads novos do Estúdio 3D já apareçam no funil — e nas
+  // notificações in-app, que fazem polling desta rota — mesmo sem o CRM aberto.
+  // É idempotente (vínculo por projeto_3d_id) e nunca derruba a listagem.
+  await sincronizarFunil3dAuto().catch(() => {});
   res.json(db.prepare(baseSelect + " ORDER BY n.ordem, n.criado_em DESC").all());
 });
 

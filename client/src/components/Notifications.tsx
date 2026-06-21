@@ -11,6 +11,7 @@ import { useNavigate } from "react-router-dom";
 import { Bell, BellRing, PhoneCall, Check, Trash2, Info, UserPlus } from "lucide-react";
 import { listarLeads } from "../features/orcamento3d/services/leadService";
 import { api } from "../lib/api";
+import { alertarNovoLead } from "../lib/leadAlerts";
 
 interface NegocioResumo {
   id: number;
@@ -185,7 +186,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         /* silencioso — sem auth/offline não deve quebrar a UI */
       }
 
-      // (2) Novos leads/orçamentos no funil comercial
+      // (2) Novos leads/orçamentos no funil comercial.
+      // GET /negocios sincroniza os Orçamentos 3D no servidor (throttled) ANTES
+      // de listar — então leads novos do Estúdio 3D entram no funil e aparecem
+      // aqui de forma confiável, mesmo sem a página do CRM aberta.
       try {
         const negocios = await api.get<NegocioResumo[]>("/negocios");
         if (!alive) return;
@@ -201,6 +205,9 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
               body: n.titulo,
               to: "/crm",
             });
+            // Gancho opcional de alerta externo (WhatsApp/e-mail). Stub: por
+            // padrão não envia nada — ver lib/leadAlerts.ts para ativar.
+            void alertarNovoLead({ titulo: n.titulo, origem: n.origem });
           }
         }
         negociosConhecidos.current = new Set(negocios.map((n) => n.id));
