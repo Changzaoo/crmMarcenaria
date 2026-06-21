@@ -3,6 +3,7 @@ import cors from "cors";
 import { seed } from "./seed/index.js";
 import { mountRoutes } from "./routes/index.js";
 import public3d from "./routes/public3d.js";
+import kiwifyWebhook from "./routes/kiwifyWebhook.js";
 
 // Popula o banco local com seed de demonstração quando ainda não existe.
 // Em produção, o snapshot do Firebase substitui esse seed no primeiro request autenticado.
@@ -52,6 +53,9 @@ export function createApp() {
 
   // Rotas públicas do Orçamento 3D (sem auth) — montadas ANTES da API autenticada.
   app.use("/api/public", public3d);
+
+  // Webhook público da Kiwify (cobrança). Sem login — protegido por token próprio.
+  app.use("/api/public/kiwify", kiwifyWebhook);
 
   const api = express.Router();
   mountRoutes(api);

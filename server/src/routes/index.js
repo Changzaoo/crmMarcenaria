@@ -12,11 +12,14 @@ import config from "./config.js";
 import dashboard from "./dashboard.js";
 import uploads from "./uploads.js";
 import leads3d from "./leads3d.js";
+import billing from "./billing.js";
 import { requireFirebaseAuth } from "../auth/firebaseAuth.js";
 import { hydrateFirebaseData, persistFirebaseData } from "../data/firebaseStore.js";
 
 export function mountRoutes(api) {
   api.use(requireFirebaseAuth);
+  // Status da assinatura: precisa só de login, não da hidratação pesada do Firebase.
+  api.use("/billing", billing);
   api.use(hydrateFirebaseData);
   api.use(persistFirebaseData);
   api.use("/empresas", empresas);

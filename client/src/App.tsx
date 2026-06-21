@@ -1,6 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import { lazy, Suspense } from "react";
 import AuthGate from "./auth/AuthGate";
+import BillingGate from "./auth/BillingGate";
 import Layout from "./components/Layout";
 import { UIProvider, Spinner } from "./components/ui";
 import { TourProvider } from "./components/Tutorial";
@@ -53,6 +54,7 @@ export default function App() {
 function AuthedApp() {
   return (
     <AuthGate>
+      <BillingGate>
       <NotificationProvider>
         <TourProvider>
           <Layout>
@@ -82,6 +84,7 @@ function AuthedApp() {
           </Layout>
         </TourProvider>
       </NotificationProvider>
+      </BillingGate>
     </AuthGate>
   );
 }
