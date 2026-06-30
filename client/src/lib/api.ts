@@ -1,5 +1,10 @@
 import { auth } from "./firebase";
 
+// Base da API. Vazio = mesma origem (/api) — dev local e quando o backend roda
+// junto. Em produção, aponte para o backend no Linux (ex.: VITE_API_BASE_URL=
+// https://api.nexusholding.xyz) para o painel ler/gravar no mesmo CRM do site.
+const API_BASE = (import.meta.env.VITE_API_BASE_URL || "").replace(/\/+$/, "");
+
 // Wrapper REST simples para /api.
 async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
   const headers: Record<string, string> = {};
@@ -9,7 +14,7 @@ async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
   if (hasBody) headers["Content-Type"] = "application/json";
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch("/api" + url, {
+  const res = await fetch(`${API_BASE}/api${url}`, {
     method,
     headers: Object.keys(headers).length ? headers : undefined,
     body: hasBody ? JSON.stringify(body) : undefined,
