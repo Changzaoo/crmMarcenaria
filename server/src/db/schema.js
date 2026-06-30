@@ -241,8 +241,25 @@ CREATE TABLE IF NOT EXISTS leads_3d (
   projeto_id TEXT,
   arquiteto_solicitado INTEGER NOT NULL DEFAULT 0,
   arquiteto_solicitado_em TEXT,
+  -- código de acompanhamento (acesso ao Portal do Cliente, sem senha)
+  token TEXT,
   criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   atualizado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+-- Arquivos técnicos enviados pelo cliente no Portal (plantas, modelos 3D…).
+-- O binário fica no disco (data/uploads); aqui guardamos só os metadados.
+CREATE TABLE IF NOT EXISTS lead_arquivos (
+  id TEXT PRIMARY KEY,
+  -- lead_id sem FK rígida de propósito: o lead pode viver no SQLite (local) ou
+  -- no Postgres do Supabase (nuvem). A limpeza é feita em removerLead().
+  lead_id TEXT NOT NULL,
+  categoria TEXT NOT NULL DEFAULT 'memorial',
+  nome TEXT NOT NULL,
+  path TEXT NOT NULL,
+  tipo TEXT,
+  tamanho INTEGER NOT NULL DEFAULT 0,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
 CREATE TABLE IF NOT EXISTS projetos_3d (
@@ -253,6 +270,36 @@ CREATE TABLE IF NOT EXISTS projetos_3d (
   status TEXT NOT NULL DEFAULT 'rascunho',
   criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   atualizado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+-- ===== Atendimento por IA (chat do site) =====
+-- Toda conversa do agente de IA com um visitante vira uma linha em conversas,
+-- com as mensagens em mensagens. Quando o visitante e qualificado, a conversa
+-- e vinculada a um lead (lead_id) e marcada como convertida. Sem FK rigida no
+-- lead_id porque o lead pode viver no SQLite (local) ou no Postgres do Supabase.
+CREATE TABLE IF NOT EXISTS conversas (
+  id TEXT PRIMARY KEY,
+  lead_id TEXT,
+  canal TEXT NOT NULL DEFAULT 'chat-site',
+  nome TEXT,
+  email TEXT,
+  whatsapp TEXT,
+  cidade_estado TEXT,
+  tipo_projeto TEXT,
+  status TEXT NOT NULL DEFAULT 'aberta',
+  convertida INTEGER NOT NULL DEFAULT 0,
+  resumo TEXT,
+  origem TEXT,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS mensagens (
+  id TEXT PRIMARY KEY,
+  conversa_id TEXT NOT NULL,
+  role TEXT NOT NULL,
+  conteudo TEXT NOT NULL,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 `;
 
@@ -284,7 +331,13 @@ CREATE INDEX IF NOT EXISTS idx_parcelas_status         ON parcelas(status);
 CREATE INDEX IF NOT EXISTS idx_parcelas_vencimento     ON parcelas(vencimento);
 CREATE INDEX IF NOT EXISTS idx_leads3d_status          ON leads_3d(status);
 CREATE INDEX IF NOT EXISTS idx_leads3d_criado          ON leads_3d(criado_em);
+CREATE INDEX IF NOT EXISTS idx_leads3d_token           ON leads_3d(token);
 CREATE INDEX IF NOT EXISTS idx_projetos3d_lead         ON projetos_3d(lead_id);
+CREATE INDEX IF NOT EXISTS idx_lead_arquivos_lead      ON lead_arquivos(lead_id);
+CREATE INDEX IF NOT EXISTS idx_conversas_criado        ON conversas(criado_em);
+CREATE INDEX IF NOT EXISTS idx_conversas_lead          ON conversas(lead_id);
+CREATE INDEX IF NOT EXISTS idx_conversas_status        ON conversas(status);
+CREATE INDEX IF NOT EXISTS idx_mensagens_conversa      ON mensagens(conversa_id);
 `;
 
 // Etapas oficiais da NEXUS

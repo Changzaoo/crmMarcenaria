@@ -13,6 +13,7 @@ import dashboard from "./dashboard.js";
 import relatorios from "./relatorios.js";
 import uploads from "./uploads.js";
 import leads3d from "./leads3d.js";
+import conversas from "./conversas.js";
 import billing from "./billing.js";
 import { requireFirebaseAuth } from "../auth/firebaseAuth.js";
 import { hydrateFirebaseData, persistFirebaseData } from "../data/firebaseStore.js";
@@ -38,4 +39,5 @@ export function mountRoutes(api) {
   api.use("/relatorios", relatorios);
   api.use("/uploads", uploads);
   api.use("/leads-3d", leads3d);
+  api.use("/conversas", conversas);
 }

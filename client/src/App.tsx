@@ -22,6 +22,7 @@ import Financeiro from "./pages/Financeiro";
 import PosVenda from "./pages/PosVenda";
 import Relatorios from "./pages/Relatorios";
 import Configuracoes from "./pages/Configuracoes";
+import Atendimentos from "./pages/Atendimentos";
 
 // Estúdio 3D — carregado sob demanda (three.js fica fora do bundle inicial).
 // Editor portado do site público (visual idêntico, mesmo catálogo de móveis).
@@ -77,6 +78,8 @@ function AuthedApp() {
                 <Route path="/pos-venda" element={<PosVenda />} />
                 <Route path="/relatorios" element={<Relatorios />} />
                 <Route path="/config" element={<Configuracoes />} />
+                {/* Atendimentos IA */}
+                <Route path="/atendimentos" element={<Atendimentos />} />
                 {/* Suporte 3D / Arquiteto */}
                 <Route path="/suporte-3d" element={<ArchitectSupportPage />} />
                 <Route path="/suporte-3d/ver/:projetoId" element={<Studio3DRoute modo="ver" />} />

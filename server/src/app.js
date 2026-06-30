@@ -3,6 +3,8 @@ import cors from "cors";
 import { seed } from "./seed/index.js";
 import { mountRoutes } from "./routes/index.js";
 import public3d from "./routes/public3d.js";
+import portal from "./routes/portal.js";
+import chat from "./routes/chat.js";
 import kiwifyWebhook from "./routes/kiwifyWebhook.js";
 import { rateLimit, startRateLimitSweeper } from "./lib/rateLimit.js";
 
@@ -23,7 +25,12 @@ export function createApp() {
 
   // Qualquer subdomínio de nexusholding.xyz (e *.vercel.app dos apps) é aceito,
   // além da allowlist explícita acima — assim trocar de domínio não quebra o CORS.
-  const ALLOWED_ORIGIN_PATTERNS = [/^https:\/\/([a-z0-9-]+\.)*nexusholding\.xyz$/i];
+  // Em dev local, qualquer porta de localhost/127.0.0.1 é liberada (site + CRM
+  // sobem em portas variáveis do Vite: 5173, 5174, 5175…).
+  const ALLOWED_ORIGIN_PATTERNS = [
+    /^https:\/\/([a-z0-9-]+\.)*nexusholding\.xyz$/i,
+    /^http:\/\/(localhost|127\.0\.0\.1):\d+$/i,
+  ];
 
   function isAllowedOrigin(origin) {
     if (ALLOWED_ORIGINS.includes(origin)) return true;
@@ -70,6 +77,13 @@ export function createApp() {
 
   // Rotas públicas do Orçamento 3D (sem auth) — montadas ANTES da API autenticada.
   app.use("/api/public", public3d);
+
+  // Portal do Cliente (upload de arquivos por código, sem login). Montado em
+  // /api/public/portal — o multer trata multipart; não passa pelo express.json.
+  app.use("/api/public/portal", portal);
+
+  // Assistente de IA (chat do site, sem login). Toda conversa cai no CRM.
+  app.use("/api/public/chat", chat);
 
   // Webhook público da Kiwify (cobrança). Sem login — protegido por token próprio.
   app.use("/api/public/kiwify", kiwifyWebhook);

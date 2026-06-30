@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { randomUUID } from "crypto";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 import { existsSync, mkdirSync } from "fs";
@@ -8,8 +9,11 @@ import { SCHEMA, INDICES, CATEGORIAS_PADRAO, FUNCIONARIOS_PADRAO, inferirModelo 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.VERCEL ? join(tmpdir(), "linear-crm") : join(__dirname, "..", "..", "..", "data");
 const DB_PATH = join(DATA_DIR, "linear.db");
+// Diretório de uploads do Portal do Cliente (binários das plantas/modelos 3D).
+const UPLOADS_DIR = join(DATA_DIR, "uploads");
 
 if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+if (!existsSync(UPLOADS_DIR)) mkdirSync(UPLOADS_DIR, { recursive: true });
 
 const isNew = !existsSync(DB_PATH);
 
@@ -25,7 +29,6 @@ const categoriasJaExistia = tabelaJaExistia("categorias");
 const funcionariosJaExistia = tabelaJaExistia("funcionarios");
 
 db.exec(SCHEMA);
-db.exec(INDICES);
 
 // Migrações idempotentes para colunas adicionadas após a 1ª versão do schema.
 const leadCols = db.prepare("PRAGMA table_info(leads_3d)").all().map((c) => c.name);
@@ -34,6 +37,17 @@ if (!leadCols.includes("arquiteto_solicitado")) {
 }
 if (!leadCols.includes("arquiteto_solicitado_em")) {
   db.exec("ALTER TABLE leads_3d ADD COLUMN arquiteto_solicitado_em TEXT");
+}
+// Código de acompanhamento do Portal do Cliente (acesso sem senha).
+if (!leadCols.includes("token")) {
+  db.exec("ALTER TABLE leads_3d ADD COLUMN token TEXT");
+}
+// Backfill: leads antigos (sem token) ganham um agora, para também poderem
+// acessar o Portal e enviar arquivos.
+const semToken = db.prepare("SELECT id FROM leads_3d WHERE token IS NULL OR token = ''").all();
+if (semToken.length) {
+  const upd = db.prepare("UPDATE leads_3d SET token = ? WHERE id = ?");
+  db.transaction(() => semToken.forEach((l) => upd.run(randomUUID().replace(/-/g, ""), l.id)))();
 }
 
 // Vínculo do funil comercial com o Orçamento 3D: cada negócio pode referenciar
@@ -64,6 +78,10 @@ for (const [col, ddl] of [
   if (!cfgCols.includes(col)) db.exec(`ALTER TABLE configuracoes ADD COLUMN ${col} ${ddl}`);
 }
 
+// Índices só DEPOIS das migrações — alguns cobrem colunas adicionadas via ALTER
+// (ex.: leads_3d.token), que não existem em bancos criados antes desta versão.
+db.exec(INDICES);
+
 // Garante linha única de configurações
 const cfg = db.prepare("SELECT id FROM configuracoes WHERE id = 1").get();
 if (!cfg) {
@@ -93,4 +111,4 @@ if (!funcionariosJaExistia) {
 }
 
 export const DB_FIRST_RUN = isNew;
-export { DB_PATH };
+export { DB_PATH, UPLOADS_DIR };

@@ -1,3 +1,4 @@
+import "./env.js"; // carrega .env antes de tudo (NVIDIA_API_KEY etc.)
 import { DB_FIRST_RUN } from "./db/index.js";
 import { app } from "./app.js";
 

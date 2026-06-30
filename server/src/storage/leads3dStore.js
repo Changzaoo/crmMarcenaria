@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { db } from "../db/index.js";
+import { gerarToken, listarArquivosPorLead, removerArquivosDoLead } from "./portalStore.js";
 
 // Armazenamento dos leads/projetos do Estúdio 3D.
 //
@@ -75,6 +76,7 @@ function normalizarDoc(projeto) {
 export async function criarLeadEProjeto(b) {
   const leadId = randomUUID();
   const projetoId = randomUUID();
+  const token = gerarToken();
   const doc = b.doc || {};
 
   if (usarSupabase()) {
@@ -91,6 +93,7 @@ export async function criarLeadEProjeto(b) {
       aceite: !!b.aceite,
       origem: b.origem || "Orçamento 3D",
       projeto_id: projetoId,
+      token,
     });
     await insere("projetos_3d", {
       id: projetoId,
@@ -99,12 +102,12 @@ export async function criarLeadEProjeto(b) {
       doc,
       status: "rascunho",
     });
-    return { leadId, projetoId };
+    return { leadId, projetoId, token };
   }
 
   db.prepare(
-    `INSERT INTO leads_3d (id, nome, email, whatsapp, cidade_estado, tipo_projeto, prazo, faixa_orcamento, descricao, aceite, origem, projeto_id)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`
+    `INSERT INTO leads_3d (id, nome, email, whatsapp, cidade_estado, tipo_projeto, prazo, faixa_orcamento, descricao, aceite, origem, projeto_id, token)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`
   ).run(
     leadId,
     b.nome,
@@ -117,7 +120,8 @@ export async function criarLeadEProjeto(b) {
     b.descricao || null,
     b.aceite ? 1 : 0,
     b.origem || "Orçamento 3D",
-    projetoId
+    projetoId,
+    token
   );
   db.prepare("INSERT INTO projetos_3d (id, lead_id, nome, doc, status) VALUES (?,?,?,?,?)").run(
     projetoId,
@@ -126,7 +130,7 @@ export async function criarLeadEProjeto(b) {
     JSON.stringify(doc),
     "rascunho"
   );
-  return { leadId, projetoId };
+  return { leadId, projetoId, token };
 }
 
 export async function lerProjeto(id) {
@@ -236,6 +240,7 @@ export async function listarLeads() {
       ...l,
       projeto_status: porId.get(l.projeto_id)?.status,
       projeto_atualizado_em: porId.get(l.projeto_id)?.atualizado_em,
+      arquivos: listarArquivosPorLead(l.id),
     }));
   }
   return db
@@ -245,7 +250,8 @@ export async function listarLeads() {
          LEFT JOIN projetos_3d p ON p.id = l.projeto_id
         ORDER BY l.criado_em DESC`
     )
-    .all();
+    .all()
+    .map((l) => ({ ...l, arquivos: listarArquivosPorLead(l.id) }));
 }
 
 export async function obterLead(id) {
@@ -258,13 +264,13 @@ export async function obterLead(id) {
       const ps = await lista(`projetos_3d?id=eq.${lead.projeto_id}&select=*&limit=1`);
       projeto = ps?.[0] ? normalizarDoc(ps[0]) : null;
     }
-    return { ...lead, projeto };
+    return { ...lead, projeto, arquivos: listarArquivosPorLead(id) };
   }
   const lead = db.prepare("SELECT * FROM leads_3d WHERE id = ?").get(id);
   if (!lead) return null;
   let projeto = lead.projeto_id ? db.prepare("SELECT * FROM projetos_3d WHERE id = ?").get(lead.projeto_id) : null;
   if (projeto) projeto = normalizarDoc(projeto);
-  return { ...lead, projeto };
+  return { ...lead, projeto, arquivos: listarArquivosPorLead(id) };
 }
 
 export async function atualizarLead(id, b) {
@@ -287,6 +293,8 @@ export async function atualizarLead(id, b) {
 
 // Remove o lead 3D e o projeto associado (limpeza definitiva).
 export async function removerLead(id) {
+  // Arquivos (registros + binários em disco) ficam sempre no SQLite local.
+  removerArquivosDoLead(id);
   if (usarSupabase()) {
     const leads = await lista(`leads_3d?id=eq.${id}&select=projeto_id&limit=1`);
     const projetoId = leads?.[0]?.projeto_id;

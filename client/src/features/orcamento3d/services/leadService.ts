@@ -1,5 +1,8 @@
 import { api } from "../../../lib/api";
 import type { LeadForm, Project3DDoc } from "../types";
+import type { PortalArquivo } from "../../../shared/contract";
+
+export type { PortalArquivo };
 
 export interface LeadCreatedResult {
   leadId: string;
@@ -32,6 +35,10 @@ export interface Lead3D {
   projeto_atualizado_em?: string;
   criado_em?: string;
   atualizado_em?: string;
+  /** código de acesso do lead ao Portal do Cliente */
+  token?: string;
+  /** arquivos técnicos enviados pelo cliente via Portal do Cliente */
+  arquivos?: PortalArquivo[];
 }
 
 export interface Lead3DDetalhe extends Lead3D {
@@ -46,6 +53,11 @@ export const STATUS_LEAD = [
   "Fechado",
   "Perdido",
 ];
+
+// URL pública (por token) para baixar/visualizar um arquivo no CRM.
+// É uma rota pública, não precisa de header de auth — usar em <a href download>.
+export const arquivoDownloadUrl = (token: string, arquivoId: string) =>
+  `/api/public/portal/${token}/arquivos/${arquivoId}`;
 
 export const listarLeads = () => api.get<Lead3D[]>("/leads-3d");
 export const obterLead = (id: string) => api.get<Lead3DDetalhe>(`/leads-3d/${id}`);

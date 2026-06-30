@@ -32,6 +32,18 @@ export const CRM_ENDPOINTS = {
   sessaoDoc: (id: string) => `/public/sessoes-3d/${id}/doc`,
   /** POST — sinaliza saída de um participante da sessão */
   sessaoLeave: (id: string) => `/public/sessoes-3d/${id}/leave`,
+
+  /* ----- Portal do Cliente (área reservada p/ envio de arquivos) ----- */
+  /** GET — valida o código e retorna o lead + arquivos já enviados */
+  portal: (token: string) => `/public/portal/${token}`,
+  /** POST (multipart) — envia um ou mais arquivos do cliente */
+  portalArquivos: (token: string) => `/public/portal/${token}/arquivos`,
+  /** GET — baixa/visualiza um arquivo enviado (também usado pelo CRM) */
+  portalArquivo: (token: string, arquivoId: string) =>
+    `/public/portal/${token}/arquivos/${arquivoId}`,
+
+  /** POST — Assistente de IA (chat do site). Toda conversa cai no CRM. */
+  chat: "/public/chat",
 } as const;
 
 /* ---------- tipos canônicos do documento 3D ---------- */
@@ -95,6 +107,37 @@ export type CrmProjectDoc = {
 export type CrmLeadCreated = {
   leadId: string;
   projetoId: string;
+  /** código de acompanhamento que dá acesso ao Portal do Cliente */
+  token: string;
+};
+
+/* ---------- Portal do Cliente: arquivos técnicos enviados ---------- */
+
+/** Categorias de documento que o cliente envia (espelha a landing). */
+export const ARQUIVO_CATEGORIAS = [
+  { key: "planta_baixa", label: "Planta baixa" },
+  { key: "layout", label: "Planta de layout / leiaute" },
+  { key: "cortes", label: "Cortes e seções" },
+  { key: "vistas", label: "Vistas / elevações" },
+  { key: "forro", label: "Planta de forro / cobertura" },
+  { key: "eletrica_hidraulica", label: "Elétrica / hidráulica" },
+  { key: "detalhamento", label: "Detalhamento / executivo de marcenaria" },
+  { key: "modelo_3d", label: "Modelo 3D" },
+  { key: "render_foto", label: "Renders / fotos do local" },
+  { key: "memorial", label: "Memorial / outros documentos" },
+] as const;
+
+export type ArquivoCategoria = (typeof ARQUIVO_CATEGORIAS)[number]["key"];
+
+/** Metadados de um arquivo enviado pelo cliente (sem o binário). */
+export type PortalArquivo = {
+  id: string;
+  categoria: ArquivoCategoria | string;
+  categoriaLabel?: string;
+  nome: string;
+  tipo: string;
+  tamanho: number;
+  criadoEm: string;
 };
 
 /* ---------- formulários públicos ---------- */

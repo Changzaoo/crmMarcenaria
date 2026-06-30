@@ -38,8 +38,8 @@ r.post(
     if (!valido.ok) {
       return res.status(400).json({ erro: valido.motivo });
     }
-    const { leadId, projetoId } = await criarLeadEProjeto(b);
-    res.json({ leadId, projetoId });
+    const { leadId, projetoId, token } = await criarLeadEProjeto(b);
+    res.json({ leadId, projetoId, token });
   })
 );
 
@@ -53,7 +53,7 @@ r.post(
     if (!valido.ok) {
       return res.status(400).json({ erro: valido.motivo });
     }
-    const { leadId } = await criarLeadEProjeto({
+    const { leadId, token } = await criarLeadEProjeto({
       nome: b.nome,
       email: b.email,
       whatsapp: b.whatsapp,
@@ -64,7 +64,7 @@ r.post(
       origem: LEAD_ORIGINS.solicitarProposta,
       doc: {},
     });
-    res.json({ leadId });
+    res.json({ leadId, token });
   })
 );
 

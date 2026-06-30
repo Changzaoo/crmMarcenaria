@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Box, Eye, LogIn, MessageCircle, Search, BellRing, Trash2 } from "lucide-react";
+import { Box, Eye, LogIn, MessageCircle, Search, BellRing, Trash2, FileText, Download } from "lucide-react";
 import { PageHeader, Card, Badge, EmptyState, Spinner, useUI } from "../../components/ui";
 import { dataHora, whatsappLink } from "../../lib/format";
-import { listarLeads, atualizarLead, removerLead, STATUS_LEAD } from "./services/leadService";
+import { listarLeads, atualizarLead, removerLead, STATUS_LEAD, arquivoDownloadUrl } from "./services/leadService";
 import type { Lead3D } from "./services/leadService";
 import { dlog } from "./dlog";
 
@@ -153,6 +153,36 @@ export default function ArchitectSupportPage() {
                 {l.projeto_status === "enviado_analise" && <div className="text-emerald-300">✓ Projeto enviado para análise</div>}
               </div>
 
+              {l.arquivos && l.arquivos.length > 0 && l.token ? (
+                <div className="rounded-lg border border-white/5 bg-white/[0.02] p-2">
+                  <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-medium text-text">
+                    📎 Arquivos do cliente ({l.arquivos.length})
+                  </div>
+                  <ul className="space-y-1">
+                    {l.arquivos.map((a) => (
+                      <li key={a.id}>
+                        <a
+                          href={arquivoDownloadUrl(l.token!, a.id)}
+                          target="_blank"
+                          rel="noreferrer"
+                          download
+                          className="group flex items-center gap-2 rounded-md px-1.5 py-1 hover:bg-white/5"
+                        >
+                          <FileText size={13} className="shrink-0 text-champagne" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-xs text-text">{a.nome}</span>
+                            <span className="block text-[10px] text-muted">
+                              {a.categoriaLabel || a.categoria} · {formatarBytes(a.tamanho)}
+                            </span>
+                          </span>
+                          <Download size={13} className="shrink-0 text-muted group-hover:text-text" />
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
               <select
                 className="input text-xs py-1.5"
                 value={statusBase(l.status)}
@@ -209,6 +239,17 @@ export default function ArchitectSupportPage() {
       </p>
     </div>
   );
+}
+
+// Formata um tamanho em bytes para algo legível (ex.: "12 KB", "3,4 MB").
+function formatarBytes(n?: number): string {
+  if (!n || n <= 0) return "0 KB";
+  const unidades = ["B", "KB", "MB", "GB"];
+  const i = Math.min(Math.floor(Math.log(n) / Math.log(1024)), unidades.length - 1);
+  const valor = n / Math.pow(1024, i);
+  // sem casa decimal para B/KB; uma casa (vírgula) para MB/GB.
+  const texto = i <= 1 ? String(Math.round(valor)) : valor.toFixed(1).replace(".", ",");
+  return `${texto} ${unidades[i]}`;
 }
 
 // Normaliza status legados ("Novo Lead 3D" / "Projeto 3D enviado...") para o conjunto do funil.

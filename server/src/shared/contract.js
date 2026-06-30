@@ -19,7 +19,59 @@ export const PUBLIC_ENDPOINTS = Object.freeze({
   sessaoState: "/sessao/:id/state",
   sessaoDoc: "/sessao/:id/doc",
   sessaoLeave: "/sessao/:id/leave",
+  // Portal do Cliente (área reservada para envio de arquivos técnicos).
+  portal: "/portal/:token",
+  portalArquivos: "/portal/:token/arquivos",
+  portalArquivo: "/portal/:token/arquivos/:arquivoId",
+  // Assistente de IA (chat do site).
+  chat: "/chat",
 });
+
+// Categorias de documento que o cliente pode enviar (espelhadas na landing,
+// src/shared/contract.ts → ARQUIVO_CATEGORIAS).
+export const ARQUIVO_CATEGORIAS = Object.freeze([
+  { key: "planta_baixa", label: "Planta baixa" },
+  { key: "layout", label: "Planta de layout / leiaute" },
+  { key: "cortes", label: "Cortes e seções" },
+  { key: "vistas", label: "Vistas / elevações" },
+  { key: "forro", label: "Planta de forro / cobertura" },
+  { key: "eletrica_hidraulica", label: "Elétrica / hidráulica" },
+  { key: "detalhamento", label: "Detalhamento / executivo de marcenaria" },
+  { key: "modelo_3d", label: "Modelo 3D" },
+  { key: "render_foto", label: "Renders / fotos do local" },
+  { key: "memorial", label: "Memorial / outros documentos" },
+]);
+
+// Extensões aceitas no upload (modelos 3D, CAD, plantas em PDF, imagens, docs).
+export const ARQUIVO_EXTENSOES_ACEITAS = Object.freeze([
+  ".pdf",
+  ".dwg", ".dxf",
+  ".skp", ".rvt", ".ifc", ".3dm",
+  ".glb", ".gltf", ".obj", ".fbx", ".stl", ".3ds", ".dae",
+  ".png", ".jpg", ".jpeg", ".webp", ".gif",
+  ".xlsx", ".xls", ".docx", ".doc", ".csv", ".txt",
+  ".zip",
+]);
+
+// 60 MB por arquivo — generoso por causa de modelos 3D (SKP/FBX).
+export const ARQUIVO_MAX_BYTES = 60 * 1024 * 1024;
+
+/** Rótulo legível de uma categoria (cai em "Outros" se desconhecida). */
+export function categoriaLabel(key) {
+  return ARQUIVO_CATEGORIAS.find((c) => c.key === key)?.label || "Outros documentos";
+}
+
+/** Normaliza a categoria recebida: usa "memorial" como balde de "outros". */
+export function normalizarCategoria(key) {
+  const k = String(key || "").trim();
+  return ARQUIVO_CATEGORIAS.some((c) => c.key === k) ? k : "memorial";
+}
+
+/** Valida a extensão do arquivo pelo nome. */
+export function extensaoAceita(nome) {
+  const m = /\.[a-z0-9]+$/i.exec(String(nome || ""));
+  return !!m && ARQUIVO_EXTENSOES_ACEITAS.includes(m[0].toLowerCase());
+}
 
 // Origens dos leads (rastreamento de funil).
 export const LEAD_ORIGINS = Object.freeze({

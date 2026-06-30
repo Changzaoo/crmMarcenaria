@@ -1,0 +1,359 @@
+diff --git a/client/src/pages/CRM.tsx b/client/src/pages/CRM.tsx
+index 01ef6ac..f868817 100644
+--- a/client/src/pages/CRM.tsx
++++ b/client/src/pages/CRM.tsx
+@@ -32,6 +32,10 @@ export default function CRM() {
+   const [erroCarga, setErroCarga] = useState<string | null>(null);
+   const arrastando = useRef(false);
+   const knownIds = useRef<Set<number> | null>(null);
++  // Controle de corrida entre o move (otimista + PATCH) e o polling de fundo:
++  const movendo = useRef(0);          // nº de moves sendo persistidos (PATCH em voo)
++  const bloquearPollAte = useRef(0);  // timestamp até o qual o poll não sobrescreve a UI
++  const cargaSeq = useRef(0);         // geração da última carga (descarta respostas obsoletas)
+   const [novo, setNovo] = useState<Partial<Negocio> | null>(null);
+   const [detalheId, setDetalheId] = useState<number | null>(null);
+   const [perda, setPerda] = useState<{ id: number; ordem: number; motivo: string } | null>(null);
+@@ -65,41 +69,53 @@ export default function CRM() {
+     }
+   }
+ 
+-  const carregar = async () => {
++  // Carrega o funil do servidor. `silencioso` (poll de fundo) não sobrescreve a UI
++  // enquanto há um move em andamento/recente, evitando que uma leitura mais antiga
++  // (ou de instância desatualizada) "puxe" um card de volta para a posição anterior.
++  const carregar = async (opts: { silencioso?: boolean } = {}) => {
++    const seq = ++cargaSeq.current;
++    let dados: Negocio[];
+     try {
+-      const dados = await api.get<Negocio[]>("/negocios");
+-      // Aplica ordenação local como fallback — se o servidor retornou ordem
+-      // inconsistente (ex.: cold start no Vercel sem snapshot recente), o
+-      // cache do localStorage mantém a disposição visual que o usuário definiu.
+-      const dadosOrdenados = aplicarOrdemLocal(dados);
+-      setNegocios(dadosOrdenados);
+-      setErroCarga(null);
+-
+-      // Detecta novos leads/orçamentos e emite notificação
+-      if (knownIds.current !== null) {
+-        const novos = dados.filter((n) => !knownIds.current!.has(n.id));
+-        for (const n of novos) {
+-          const eh3d = n.origem === "Orçamento 3D";
+-          const ehSite = n.origem === "Solicitar proposta";
+-          const titulo = eh3d ? "Novo orçamento 3D recebido" : ehSite ? "Nova solicitação do site" : "Novo lead";
+-          pushNotif({
+-            id: `negocio:${n.id}`,
+-            type: "lead",
+-            title: titulo,
+-            body: n.titulo,
+-            to: "/crm",
+-          });
+-        }
+-      }
+-      knownIds.current = new Set(dados.map((n) => n.id));
+-
+-      return dados;
++      dados = await api.get<Negocio[]>("/negocios");
+     } catch (error) {
+-      const msg = apiErrorMessage(error);
+-      setErroCarga(msg);
+-      toast(msg, "err");
++      // Só reporta o erro se esta ainda for a carga mais recente e não for poll.
++      if (seq === cargaSeq.current && !opts.silencioso) {
++        const msg = apiErrorMessage(error);
++        setErroCarga(msg);
++        toast(msg, "err");
++      }
+       return negocios || [];
+     }
++
++    // Resposta obsoleta: outra carga mais nova já foi disparada (ex.: recarga
++    // pós-move). Descarta para não sobrescrever a UI com dados antigos.
++    if (seq !== cargaSeq.current) return dados;
++
++    // Detecta novos leads/orçamentos e emite notificação (sempre — mesmo que a
++    // aplicação visual seja adiada por um move em andamento).
++    if (knownIds.current !== null) {
++      const novos = dados.filter((n) => !knownIds.current!.has(n.id));
++      for (const n of novos) {
++        const eh3d = n.origem === "Orçamento 3D";
++        const ehSite = n.origem === "Solicitar proposta";
++        const titulo = eh3d ? "Novo orçamento 3D recebido" : ehSite ? "Nova solicitação do site" : "Novo lead";
++        pushNotif({ id: `negocio:${n.id}`, type: "lead", title: titulo, body: n.titulo, to: "/crm" });
++      }
++    }
++    knownIds.current = new Set(dados.map((n) => n.id));
++
++    // Nunca sobrescreve durante o gesto de arrastar. Polls de fundo também não
++    // sobrescrevem com um move sendo persistido nem na janela de carência logo
++    // após um move (dá tempo do snapshot propagar entre instâncias no Vercel).
++    if (arrastando.current) return dados;
++    if (opts.silencioso && (movendo.current > 0 || Date.now() < bloquearPollAte.current)) return dados;
++
++    // Aplica ordenação local como fallback — se o servidor retornou ordem
++    // inconsistente (ex.: cold start no Vercel sem snapshot recente), o cache do
++    // localStorage mantém a disposição visual que o usuário definiu.
++    setNegocios(aplicarOrdemLocal(dados));
++    setErroCarga(null);
++    return dados;
+   };
+ 
+   const [sincronizando, setSincronizando] = useState(false);
+@@ -130,7 +146,9 @@ export default function CRM() {
+         api.get<Empresa[]>("/empresas"),
+         api.get<Funcionario[]>("/funcionarios").catch(() => []),
+       ]);
+-      setNegocios(dadosNegocios);
++      cargaSeq.current += 1; // marca uma carga "fresca": invalida polls em voo
++      setNegocios(aplicarOrdemLocal(dadosNegocios));
++      knownIds.current = new Set(dadosNegocios.map((n) => n.id));
+       setEmpresas(dadosEmpresas);
+       setFuncionarios(dadosFunc);
+       setErroCarga(null);
+@@ -156,10 +174,12 @@ export default function CRM() {
+   useEffect(() => {
+     let n = 0;
+     const t = setInterval(async () => {
+-      if (arrastando.current || document.visibilityState !== "visible") return;
++      if (document.visibilityState !== "visible") return;
++      // Não dispara polling durante o gesto nem com um move sendo persistido.
++      if (arrastando.current || movendo.current > 0) return;
+       n += 1;
+       if (n % 5 === 0) await sincronizar3d();
+-      await carregar();
++      await carregar({ silencioso: true });
+     }, 12000);
+     return () => clearInterval(t);
+     // eslint-disable-next-line react-hooks/exhaustive-deps
+@@ -171,43 +191,77 @@ export default function CRM() {
+     const id = Number(r.draggableId);
+     const etapa = r.destination.droppableId;
+     const ordem = r.destination.index;
+-    const neg = negocios.find((n) => n.id === id)!;
++    const neg = negocios.find((n) => n.id === id);
++    if (!neg) return;
+     if (etapa === neg.etapa && ordem === neg.ordem) return;
+ 
+     if (etapa === "Perdido") { setPerda({ id, ordem, motivo: "preço" }); return; }
+ 
+-    // otimista
+-    setNegocios((prev) => prev!.map((n) => (n.id === id ? { ...n, etapa, ordem } : n)));
+-    // Salva ordem no localStorage como fallback contra perda de estado após reload.
+-    // Reconstrói a coluna de destino com o card movido inserido na posição `ordem`.
+-    const destino = negocios
++    // Reconstrói a coluna de DESTINO com a mesma semântica do drag-and-drop (e do
++    // servidor): remove o card e o reinsere na posição alvo. Espelhar a renumeração
++    // do servidor evita ordens duplicadas e o "salto" do card no refresh seguinte.
++    const origemEtapa = neg.etapa;
++    const destinoIds = negocios
+       .filter((n) => n.etapa === etapa && n.id !== id)
+       .sort((a, b) => a.ordem - b.ordem)
+       .map((n) => n.id);
+-    destino.splice(ordem, 0, id);
+-    salvarOrdemLocal(etapa, destino);
+-    // Atualiza também a coluna de origem (sem o card que saiu).
+-    if (neg.etapa !== etapa) {
+-      const origem = negocios
+-        .filter((n) => n.etapa === neg.etapa && n.id !== id)
+-        .sort((a, b) => a.ordem - b.ordem)
+-        .map((n) => n.id);
+-      salvarOrdemLocal(neg.etapa, origem);
+-    }
++    destinoIds.splice(Math.min(ordem, destinoIds.length), 0, id);
++    const origemIds = origemEtapa === etapa ? null : negocios
++      .filter((n) => n.etapa === origemEtapa && n.id !== id)
++      .sort((a, b) => a.ordem - b.ordem)
++      .map((n) => n.id);
++
++    // Atualização otimista: aplica a nova etapa/ordem em TODOS os cards afetados.
++    setNegocios((prev) => {
++      if (!prev) return prev;
++      const ordemDestino = new Map(destinoIds.map((cid, i) => [cid, i]));
++      const ordemOrigem = origemIds ? new Map(origemIds.map((cid, i) => [cid, i])) : null;
++      return prev.map((n) => {
++        if (n.id === id) return { ...n, etapa, ordem: ordemDestino.get(id) ?? ordem };
++        if (n.etapa === etapa && ordemDestino.has(n.id)) return { ...n, ordem: ordemDestino.get(n.id)! };
++        if (ordemOrigem && n.etapa === origemEtapa && ordemOrigem.has(n.id)) return { ...n, ordem: ordemOrigem.get(n.id)! };
++        return n;
++      });
++    });
++
++    // Fallback de ordenação em localStorage (resiste a reload/cold start no Vercel).
++    salvarOrdemLocal(etapa, destinoIds);
++    if (origemIds) salvarOrdemLocal(origemEtapa, origemIds);
++
++    movendo.current += 1;
+     try {
+       const res = await api.patch<{ projetoCriado: number | null }>(`/negocios/${id}/mover`, { etapa, ordem });
+       if (res.projetoCriado) {
+         toast("Negócio ganho! Projeto criado com as 10 etapas.");
+         if (confirm("Converter o orçamento aprovado em contrato e abrir o projeto agora?")) nav(`/projetos/${res.projetoCriado}`);
+       }
+-      carregar();
+-    } catch (e: any) { toast(e.message, "err"); carregar(); }
++    } catch (e: any) {
++      toast(e?.message || "Não foi possível mover o card.", "err");
++    } finally {
++      movendo.current -= 1;
++      // Janela de carência: por alguns segundos, polls de fundo não sobrescrevem a
++      // UI — evita reversão por leitura de instância ainda desatualizada no Vercel.
++      bloquearPollAte.current = Date.now() + 4000;
++    }
++    // Reconcilia com o servidor (autoritativo). Não-silencioso: aplica a verdade
++    // do servidor mesmo dentro da janela de carência, respeitando o seq de carga.
++    carregar();
+   };
+ 
+   const confirmarPerda = async () => {
+     if (!perda) return;
+-    await api.patch(`/negocios/${perda.id}/mover`, { etapa: "Perdido", ordem: perda.ordem, motivo_perda: perda.motivo });
+-    setPerda(null); carregar(); toast("Negócio movido para Perdido.");
++    movendo.current += 1;
++    try {
++      await api.patch(`/negocios/${perda.id}/mover`, { etapa: "Perdido", ordem: perda.ordem, motivo_perda: perda.motivo });
++      toast("Negócio movido para Perdido.");
++    } catch (e: any) {
++      toast(e?.message || "Não foi possível mover para Perdido.", "err");
++    } finally {
++      movendo.current -= 1;
++      bloquearPollAte.current = Date.now() + 4000;
++    }
++    setPerda(null);
++    carregar();
+   };
+ 
+   const criar = async () => {
+diff --git a/server/src/data/firebaseStore.js b/server/src/data/firebaseStore.js
+index 156bd2c..44924c4 100644
+--- a/server/src/data/firebaseStore.js
++++ b/server/src/data/firebaseStore.js
+@@ -13,6 +13,11 @@ let hydrated = false;
+ let hydrating = null;
+ let disabledByError = false;
+ let lastError = null;
++// `_salvo_em` do snapshot atualmente aplicado neste processo. Usado para detectar,
++// em ambiente serverless (Vercel = várias instâncias), quando OUTRA instância
++// gravou um snapshot mais novo — e então re-hidratar antes de servir a requisição.
++let appliedSalvoEm = null;
++let refreshing = null;
+ 
+ function firebaseUrl(path, token) {
+   const cleanPath = path.replace(/^\/+|\/+$/g, "");
+@@ -72,14 +77,28 @@ async function firebaseFetch(path, token, options = {}) {
+ 
+ async function saveSnapshot(token) {
+   if (!shouldSync()) return;
++  const salvoEm = new Date().toISOString();
+   const payload = {
+     ...dumpDatabase(),
+-    _salvo_em: new Date().toISOString(),
++    _salvo_em: salvoEm,
+   };
+   await firebaseFetch(DATABASE_PATH, token, {
+     method: "PUT",
+     body: JSON.stringify(payload),
+   });
++  // Marca este snapshot como o aplicado localmente: evita que a verificação de
++  // frescor re-hidrate por cima da nossa própria escrita na requisição seguinte.
++  appliedSalvoEm = salvoEm;
++}
++
++// Leitura minúscula (só o marcador `_salvo_em`) para descobrir se o snapshot
++// remoto está mais novo que o aplicado nesta instância, sem baixar o dump inteiro.
++async function fetchRemoteSalvoEm(token) {
++  try {
++    return await firebaseFetch(`${DATABASE_PATH}/_salvo_em`, token);
++  } catch {
++    return null;
++  }
+ }
+ 
+ export async function hydrateFirebaseData(req, _res, next) {
+@@ -101,6 +120,7 @@ export async function hydrateFirebaseData(req, _res, next) {
+         if (snapshot && typeof snapshot === "object" && snapshot._versao) {
+           console.log("[firebase-data] Restaurando snapshot do Firebase (fonte de verdade).");
+           restoreDatabase(snapshot);
++          appliedSalvoEm = snapshot._salvo_em || null;
+         } else {
+           // Não existe snapshot remoto ainda: promove o banco local (seed) ao remoto.
+           console.log("[firebase-data] Sem snapshot remoto. Salvando estado local inicial.");
+@@ -112,6 +132,26 @@ export async function hydrateFirebaseData(req, _res, next) {
+       });
+ 
+       await hydrating;
++    } else {
++      // Já hidratado NESTE processo. No Vercel há múltiplas instâncias: outra pode
++      // ter gravado um snapshot mais novo que esta ainda não viu. Antes de servir,
++      // confere o marcador `_salvo_em` (leitura ínfima) e, se o remoto for mais
++      // novo, re-hidrata o snapshot completo. É isto que elimina o "card volta para
++      // o lugar" — leituras de instâncias desatualizadas — SEM botão de sincronizar.
++      const remoto = await fetchRemoteSalvoEm(req.firebaseToken);
++      if (remoto && remoto !== appliedSalvoEm) {
++        // Coalescing: requisições concorrentes aguardam a mesma re-hidratação.
++        refreshing ||= (async () => {
++          const snapshot = await firebaseFetch(DATABASE_PATH, req.firebaseToken);
++          if (snapshot && typeof snapshot === "object" && snapshot._versao) {
++            restoreDatabase(snapshot);
++            appliedSalvoEm = snapshot._salvo_em || remoto;
++          }
++        })().finally(() => {
++          refreshing = null;
++        });
++        await refreshing;
++      }
+     }
+ 
+     return next();
+diff --git a/server/src/routes/negocios.js b/server/src/routes/negocios.js
+index a6c589c..9eb61d2 100644
+--- a/server/src/routes/negocios.js
++++ b/server/src/routes/negocios.js
+@@ -91,28 +91,32 @@ r.patch("/:id/mover", (req, res) => {
+   }
+ 
+   const fechadoEm = (etapa === "Fechado (ganho)" || etapa === "Perdido") ? new Date().toISOString().slice(0, 19).replace("T", " ") : null;
++  const idMovido = Number(req.params.id);
+ 
+   db.transaction(() => {
+-    // Move o card para a nova etapa/posição
+-    db.prepare("UPDATE negocios SET etapa=?, ordem=?, motivo_perda=?, fechado_em=COALESCE(?, fechado_em) WHERE id=?")
+-      .run(etapa, ordem ?? 0, etapa === "Perdido" ? motivo_perda : null, fechadoEm, req.params.id);
+-
+-    // Renumera todos os cards da coluna destino para eliminar colisões de ordem.
+-    // Em caso de empate na posição, o card movido vence (cai exatamente no índice
+-    // solicitado, empurrando o que estava ali para baixo); demais empates por criado_em.
+-    const cards = db.prepare(
+-      `SELECT id FROM negocios WHERE etapa=?
+-       ORDER BY (CASE WHEN id=? THEN ? ELSE ordem END),
+-                (CASE WHEN id=? THEN 0 ELSE 1 END),
+-                criado_em`
+-    ).all(etapa, req.params.id, ordem ?? 0, req.params.id);
++    // 1) Atualiza etapa/perda/fechado do card. A `ordem` definitiva é recalculada
++    //    a seguir reconstruindo a coluna inteira.
++    db.prepare("UPDATE negocios SET etapa=?, motivo_perda=?, fechado_em=COALESCE(?, fechado_em) WHERE id=?")
++      .run(etapa, etapa === "Perdido" ? motivo_perda : null, fechadoEm, idMovido);
++
++    // 2) Reconstrói a coluna de DESTINO com a MESMA semântica do drag-and-drop:
++    //    pega a lista atual SEM o card movido e o reinsere exatamente na posição
++    //    solicitada. Isso evita o off-by-one que acontecia ao mover um card para
++    //    baixo dentro da mesma coluna (o desempate por `ordem` antiga colocava o
++    //    card uma posição acima da pretendida, fazendo-o "saltar" no refresh).
++    const destino = db.prepare("SELECT id FROM negocios WHERE etapa=? AND id<>? ORDER BY ordem, criado_em")
++      .all(etapa, idMovido).map((c) => c.id);
++    const pos = Math.max(0, Math.min(Number(ordem) || 0, destino.length));
++    destino.splice(pos, 0, idMovido);
+     const upd = db.prepare("UPDATE negocios SET ordem=? WHERE id=?");
+-    cards.forEach((c, i) => upd.run(i, c.id));
++    destino.forEach((cid, i) => upd.run(i, cid));
+ 
+-    // Se o card saiu de outra etapa, renumera a coluna de origem também.
++    // 3) Se o card saiu de outra etapa, renumera a coluna de ORIGEM (0..n) para
++    //    eliminar buracos e colisões de ordem.
+     if (neg.etapa !== etapa) {
+-      const origem = db.prepare("SELECT id FROM negocios WHERE etapa=? ORDER BY ordem, criado_em").all(neg.etapa);
+-      origem.forEach((c, i) => upd.run(i, c.id));
++      const origem = db.prepare("SELECT id FROM negocios WHERE etapa=? AND id<>? ORDER BY ordem, criado_em")
++        .all(neg.etapa, idMovido).map((c) => c.id);
++      origem.forEach((cid, i) => upd.run(i, cid));
+     }
+   })();
+ 
